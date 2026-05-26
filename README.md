@@ -1,122 +1,162 @@
 # Gittensory
 
-Gittensory is a backend-only GitHub App/API layer for Gittensor registered repositories.
+Gittensory is a backend-only intelligence layer for Gittensor registered repositories.
 
-It gives maintainers and serious contributors advisory signals around repository configuration,
-pull requests, issues, bounty context, duplicate risk, and queue health. It does not auto-label,
-comment, close, merge, or store user GitHub PATs.
+It helps miners and contributors make better decisions before they open work, and it helps maintainers review Gittensor-driven PRs with less noise. The product is the signal: role-aware contributor context, official Gittensor stats, local MCP preflight, queue health, collision risk, reviewability, and repo configuration quality.
 
-The product wedge is signal, not UI. Gittensory is not a replacement frontend for Gittensor or
-gittensor-hub; it is a private API and GitHub App surface that exposes evidence-backed context
-other frontends usually do not show clearly.
-
-The frontend is intentionally out of scope for this repo slice. Lovable can consume the JSON API
-and OpenAPI document once the backend is deployed.
+Gittensory is not a Gittensor frontend, not a public leaderboard, and not an auto-label/auto-close bot.
 
 ## What It Does
 
-- Helps contributors understand which repos fit their GitHub history and which submissions need
-  cleanup before they become maintainer burden.
-- Helps maintainers identify noisy queues, duplicate or overlapping work, missing issue linkage,
-  stale PRs, and repo config problems.
-- Helps repo owners see whether their Gittensor registration, labels, and participation lane are
-  likely to attract useful work.
-- Exposes the same backend intelligence through a private MCP endpoint for coding agents and
-  contributor tooling.
-- Can publish opt-in, public-safe GitHub PR context comments for detected Gittensor contributors
-  while keeping detailed trust signals in checks/API.
-- Keeps the first intelligence layer deterministic and evidence-based. LLMs may summarize later,
-  but core trust/ranking decisions stay rule-driven.
+- Builds private contributor decision packs from official Gittensor stats plus cached GitHub context.
+- Analyzes local branches through the MCP wrapper without uploading source contents.
+- Explains private reward/risk context: score blockers, open PR pressure, lane fit, duplicate risk, credibility assumptions, and maintainer friction.
+- Generates public-safe PR packets that help contributors write cleaner submissions.
+- Gives maintainers private PR reviewability packets and advisory check runs.
+- Tracks repository intelligence: lane correctness, registry changes, queue health, label/config quality, collisions, bounties, and sync fidelity.
 
-## Backend Stack
+## Surfaces
 
-- Cloudflare Workers + Hono
-- Cloudflare D1 + Drizzle schema/migrations
-- Cloudflare Queues for async webhook/check processing
-- GitHub App webhooks and check runs
-- Zod schemas with generated OpenAPI JSON
+- Worker API: Cloudflare Workers + Hono + D1 + Queues.
+- MCP package: `@jsonbored/gittensory-mcp`, a local stdio wrapper for coding agents.
+- GitHub App: check runs and optional sanitized sticky PR comments.
+- Docs site: VitePress under `site/`, deployable by GitHub Pages when the repo is public.
 
-## Local Setup
+## MCP Install
 
-```bash
+Private beta:
+
+```sh
+npm install
+npm link --workspace @jsonbored/gittensory-mcp
+gittensory-mcp login
+gittensory-mcp doctor
+gittensory-mcp --stdio
+```
+
+Public npm path, once intentionally launched:
+
+```sh
+npx @jsonbored/gittensory-mcp login
+npm install -g @jsonbored/gittensory-mcp
+gittensory-mcp --stdio
+```
+
+The package is restricted until launch. Public release requires changing npm access to `public`, bumping the MCP package version, and publishing through the tag-gated release workflow.
+
+## MCP Client Config
+
+Print client snippets:
+
+```sh
+gittensory-mcp init-client --print codex
+gittensory-mcp init-client --print claude
+gittensory-mcp init-client --print cursor
+```
+
+Generic stdio command:
+
+```json
+{
+  "mcpServers": {
+    "gittensory": {
+      "command": "gittensory-mcp",
+      "args": ["--stdio"]
+    }
+  }
+}
+```
+
+Use an absolute command path if your MCP client does not inherit your shell `PATH`.
+
+## Backend Setup
+
+```sh
 npm install
 npm run cf-typegen
 npm run db:migrate:local
 npm run dev
 ```
 
-Secrets are configured through Cloudflare, not committed:
+Cloudflare secrets:
 
-```bash
+```sh
 wrangler secret put GITHUB_WEBHOOK_SECRET
 wrangler secret put GITHUB_APP_PRIVATE_KEY
+wrangler secret put GITHUB_PUBLIC_TOKEN
+wrangler secret put GITHUB_OAUTH_CLIENT_ID
 wrangler secret put GITTENSORY_API_TOKEN
 wrangler secret put GITTENSORY_MCP_TOKEN
 wrangler secret put INTERNAL_JOB_TOKEN
 ```
 
-For local development, put non-production test values in `.dev.vars`.
+`GITHUB_PUBLIC_TOKEN` is a server-side token used to raise public GitHub API rate limits during registered-repo backfill. It is not a contributor token.
 
-## API
+## Canonical API
 
-Private beta REST endpoints use `Authorization: Bearer <GITTENSORY_API_TOKEN>`.
-`/health`, signed GitHub webhooks, internal-token routes, and `/mcp` use their own auth paths.
+Private beta endpoints use `Authorization: Bearer <GITTENSORY_API_TOKEN>` or a Gittensory OAuth session where supported.
 
 - `GET /health`
 - `GET /openapi.json`
+- `GET /v1/readiness`
+- `GET /v1/sync/status`
 - `GET /v1/registry/snapshot`
+- `GET /v1/registry/changes`
+- `GET /v1/scoring/model`
+- `POST /v1/scoring/preview`
+- `GET /v1/installations`
+- `GET /v1/installations/:id/health`
 - `GET /v1/repos`
 - `GET /v1/repos/:owner/:repo`
-- `GET /v1/repos/:owner/:repo/advisory`
-- `GET /v1/repos/:owner/:repo/workboard`
-- `GET /v1/repos/:owner/:repo/queue-health`
-- `GET /v1/repos/:owner/:repo/collisions`
-- `GET /v1/repos/:owner/:repo/config-quality`
-- `GET /v1/repos/:owner/:repo/settings`
-- `GET /v1/repos/:owner/:repo/maintainer-packet`
-- `GET /v1/repos/:owner/:repo/pulls/:number/advisory`
-- `GET /v1/repos/:owner/:repo/issues/:number/advisory`
+- `GET /v1/repos/:owner/:repo/intelligence`
+- `GET /v1/repos/:owner/:repo/pulls/:number/maintainer-packet`
+- `GET /v1/repos/:owner/:repo/pulls/:number/reviewability`
 - `GET /v1/contributors/:login/profile`
-- `GET /v1/contributors/:login/opportunities`
+- `GET /v1/contributors/:login/decision-pack`
+- `GET /v1/contributors/:login/repos/:owner/:repo/decision`
 - `POST /v1/preflight/pr`
+- `POST /v1/preflight/local-diff`
+- `POST /v1/local/branch-analysis`
 - `GET /v1/bounties`
 - `GET /v1/bounties/:id/advisory`
 - `POST /mcp`
 - `POST /v1/github/webhook`
-- `POST /v1/internal/jobs/refresh-registry`
 
-## MCP
+Internal job routes are protected by `INTERNAL_JOB_TOKEN`.
 
-`POST /mcp` exposes private-beta MCP tools over JSON-RPC/Streamable HTTP style requests.
-Use `Authorization: Bearer <GITTENSORY_MCP_TOKEN>`.
+## GitHub App Requirements
 
-Initial tools:
+Required repository permissions:
 
-- `gittensory_get_repo_context`
-- `gittensory_get_contributor_profile`
-- `gittensory_find_opportunities`
-- `gittensory_preflight_pr`
-- `gittensory_get_queue_health`
-- `gittensory_get_collisions`
-- `gittensory_get_bounty_advisory`
+- Metadata: read
+- Checks: write
+- Pull requests: read
+- Issues: read
 
-## GitHub App PR Intelligence
+Optional repository permission:
 
-Repo comments are off by default. Enable public-safe sticky PR comments through the protected
-settings endpoint:
+- Issues: write, only when public-safe sticky PR comments are enabled.
 
-```bash
-curl -X POST "$GITTENSORY_URL/v1/internal/repos/OWNER/REPO/settings" \
-  -H "Authorization: Bearer $INTERNAL_JOB_TOKEN" \
-  -H "content-type: application/json" \
-  --data '{"commentMode":"detected_contributors_only","publicSignalLevel":"standard"}'
+Required events:
+
+- Pull request
+- Issues
+- Repository
+
+If GitHub shows `Installation target`, select it. Gittensory should not block install health on event names that GitHub does not show in the app UI.
+
+## Docs
+
+```sh
+npm run docs:dev
+npm run docs:build
+npm run docs:preview
 ```
 
-Detailed maintainer intelligence stays in check runs and API responses. PR comments intentionally
-avoid raw trust scores, rankings, wallet data, or compensation estimates.
+The Pages workflow builds the docs on `main`, but deploys only when the repository variable `GITTENSORY_DOCS_DEPLOY` is set to `true`.
 
 ## Validation
 
-```bash
-npm run validate
+```sh
+npm run test:ci
 ```
