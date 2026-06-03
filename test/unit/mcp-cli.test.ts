@@ -900,6 +900,26 @@ describe("gittensory-mcp CLI", () => {
   it("rejects unsupported client snippets", () => {
     expect(() => run(["init-client", "--print", "other"])).toThrow(/Unsupported client/);
   });
+
+  it("reports the package version via version, --version, and -v", () => {
+    const expected = "@jsonbored/gittensory-mcp/0.4.0";
+    expect(run(["version"]).trim()).toContain(expected);
+    expect(run(["--version"]).trim()).toContain(expected);
+    expect(run(["-v"]).trim()).toContain(expected);
+  });
+
+  it("emits machine-readable version output with --json", () => {
+    const payload = JSON.parse(run(["version", "--json"])) as { name: string; version: string; apiVersion: string; node: string };
+    expect(payload.name).toBe("@jsonbored/gittensory-mcp");
+    expect(payload.version).toBe("0.4.0");
+    expect(payload.apiVersion).toBe("0.1.0");
+    expect(payload.node).toBe(process.version);
+  });
+
+  it("guides unknown commands to --help", () => {
+    expect(() => run(["bogus-command"])).toThrow(/Unknown command: bogus-command/);
+    expect(() => run(["bogus-command"])).toThrow(/gittensory-mcp --help/);
+  });
 });
 
 function run(args: string[], env: Record<string, string> = {}) {

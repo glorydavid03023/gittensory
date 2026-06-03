@@ -27,6 +27,8 @@ npm link --workspace @jsonbored/gittensory-mcp
 ## Commands
 
 ```sh
+gittensory-mcp version
+gittensory-mcp version --json
 gittensory-mcp login
 gittensory-mcp logout
 gittensory-mcp whoami
@@ -51,6 +53,8 @@ gittensory-mcp agent status <run-id> --json
 gittensory-mcp agent explain <run-id> --json
 gittensory-mcp --stdio
 ```
+
+`gittensory-mcp version` (aliases `--version` and `-v`) prints the installed package version, the targeted API version, and the Node.js runtime version. Add `--json` for machine-readable output.
 
 For near-term what-if scoreability, pass the situational assumptions explicitly:
 
