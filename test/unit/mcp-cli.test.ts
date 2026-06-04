@@ -903,9 +903,13 @@ describe("gittensory-mcp CLI", () => {
 
   it("reports the package version via version, --version, and -v", () => {
     const expected = "@jsonbored/gittensory-mcp/0.4.0";
-    expect(run(["version"]).trim()).toContain(expected);
-    expect(run(["--version"]).trim()).toContain(expected);
-    expect(run(["-v"]).trim()).toContain(expected);
+    for (const flag of ["version", "--version", "-v"]) {
+      const plain = run([flag]).trim();
+      expect(plain).toContain(expected);
+      // The plain form reports all three values the README documents.
+      expect(plain).toContain("api 0.1.0");
+      expect(plain).toContain(`node ${process.version}`);
+    }
   });
 
   it("emits machine-readable version output with --json", () => {

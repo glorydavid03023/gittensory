@@ -726,7 +726,7 @@ function printVersion(options) {
     process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
     return;
   }
-  process.stdout.write(`${packageName}/${packageVersion} (node ${process.version})\n`);
+  process.stdout.write(`${packageName}/${packageVersion} (api ${currentApiVersion}, node ${process.version})\n`);
 }
 
 function printHelp() {
