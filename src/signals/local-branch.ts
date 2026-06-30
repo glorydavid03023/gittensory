@@ -45,6 +45,17 @@ export type LocalBranchValidation = {
   exitCode?: number | undefined;
 };
 
+/**
+ * A local validation command counts as passing test evidence when it ran green — either a full run
+ * (`"passed"`) or a focused subset (`"focused"`, e.g. `vitest run path/to/file.test.ts`). Single-sourced
+ * so every evidence surface (the PR-packet validation summary, the freshness evidence list, the
+ * `validation_as_test_evidence` finding, and the v2 workspace-intelligence count) agrees on what passing
+ * means instead of drifting apart.
+ */
+export function isPassingValidation(entry: LocalBranchValidation): boolean {
+  return entry.status === "passed" || entry.status === "focused";
+}
+
 export type LocalBranchScorer = {
   mode: "metadata_only" | "external_command" | "gittensor_root";
   activeModel?: string | undefined;
@@ -841,7 +852,7 @@ function buildLocalFindings(
           },
         ]
       : []),
-    ...((input.validation ?? []).some((entry) => entry.status === "passed") && !changedFiles.some((file) => isTestFile(file.path))
+    ...((input.validation ?? []).some(isPassingValidation) && !changedFiles.some((file) => isTestFile(file.path))
       ? [
           {
             code: "validation_as_test_evidence",
@@ -1209,7 +1220,7 @@ function renderPrPacketMarkdown(title: string, sections: Array<{ heading: string
 
 function summarizeValidation(validation: LocalBranchValidation[]): LocalBranchAnalysis["prPacket"]["validationSummary"] {
   return {
-    passed: validation.filter((entry) => entry.status === "passed" || entry.status === "focused").length,
+    passed: validation.filter(isPassingValidation).length,
     failed: validation.filter((entry) => entry.status === "failed").length,
     notRun: validation.filter((entry) => entry.status === "not_run" || entry.status === "skipped" || entry.status === "unknown").length,
     commands: validation,
@@ -1218,7 +1229,7 @@ function summarizeValidation(validation: LocalBranchValidation[]): LocalBranchAn
 
 function validationEvidence(validation: LocalBranchValidation[] | undefined): string[] {
   return (validation ?? [])
-    .filter((entry) => entry.status === "passed" || entry.status === "focused")
+    .filter(isPassingValidation)
     .map((entry) => entry.command);
 }
 
