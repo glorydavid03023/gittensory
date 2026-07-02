@@ -39,7 +39,8 @@ function McpClients() {
         code={`gittensory-mcp init-client --print codex
 gittensory-mcp init-client --print claude
 gittensory-mcp init-client --print cursor
-gittensory-mcp init-client --print mcp`}
+gittensory-mcp init-client --print mcp
+gittensory-mcp init-client --print windsurf`}
       />
       <p>
         <code>--print mcp</code> uses the same JSON snippet as Claude Desktop and Cursor for other
