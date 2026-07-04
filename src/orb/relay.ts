@@ -26,6 +26,99 @@ const RELAY_FORWARD_EVENTS = new Set([
   "issues",
 ]);
 
+export type RelayForwardOutcome = "forwarded" | "queued" | "skipped" | "failed";
+
+/** Events brokered self-host containers need for review/actuation (excludes CI firehose + install lifecycle). */
+export function isRelayForwardableEvent(eventName: string): boolean {
+  return RELAY_FORWARD_EVENTS.has(eventName);
+}
+
+/** A persisted `orb_relay_failures` row is terminal (delete) when delivery succeeded or the event can never be relayed. */
+export function isRelayFailureRetryTerminal(outcome: RelayForwardOutcome, eventName: string): boolean {
+  if (outcome === "forwarded" || outcome === "queued") return true;
+  // Permanently non-forwardable (e.g. check_run removed from the allowlist) — the row is obsolete.
+  if (outcome === "skipped" && !isRelayForwardableEvent(eventName)) return true;
+  return false;
+}
+
+/** Whether a deferred forward attempt should INSERT into `orb_relay_failures` for the retry cron. */
+export function shouldPersistRelayFailure(
+  outcome: RelayForwardOutcome,
+  eventName: string,
+  installationId: number | null | undefined,
+): boolean {
+  if (installationId == null) return false;
+  if (!isRelayForwardableEvent(eventName)) return false;
+  // Push HTTP failure, or a forwardable event that is temporarily undeliverable (no relay_url yet,
+  // TOKEN_ENCRYPTION_SECRET absent during deploy, enrollment mid re-register, not-yet-enrolled install).
+  return outcome === "failed" || outcome === "skipped";
+}
+
+function logRelayTransientSkip(args: {
+  deliveryId: string;
+  eventName: string;
+  installationId: number;
+  phase: "initial" | "retry";
+}): void {
+  console.warn(
+    JSON.stringify({
+      level: "warn",
+      event: "orb_relay_transient_skip",
+      phase: args.phase,
+      deliveryId: args.deliveryId,
+      eventName: args.eventName,
+      installationId: args.installationId,
+      message: "Forwardable relay event skipped due to transient config — queued for retry cron",
+    }),
+  );
+}
+
+/** Record a deferred forward outcome that needs the retry cron (initial delivery path). Idempotent on delivery_id. */
+export async function persistRelayForwardOutcome(
+  env: Env,
+  args: { deliveryId: string; eventName: string; installationId: number | null | undefined; rawBody: string },
+  outcome: RelayForwardOutcome,
+): Promise<void> {
+  if (!shouldPersistRelayFailure(outcome, args.eventName, args.installationId)) return;
+  if (outcome === "skipped" && args.installationId != null) {
+    logRelayTransientSkip({
+      deliveryId: args.deliveryId,
+      eventName: args.eventName,
+      installationId: args.installationId,
+      phase: "initial",
+    });
+  }
+  await storeRelayFailure(env, {
+    deliveryId: args.deliveryId,
+    eventName: args.eventName,
+    installationId: args.installationId!,
+    rawBody: args.rawBody,
+  });
+}
+
+async function finalizeRelayFailureRetryRow(
+  env: Env,
+  row: { delivery_id: string; event_name: string; installation_id: number },
+  outcome: RelayForwardOutcome,
+): Promise<void> {
+  if (isRelayFailureRetryTerminal(outcome, row.event_name)) {
+    await env.DB.prepare("DELETE FROM orb_relay_failures WHERE delivery_id = ?").bind(row.delivery_id).run();
+    return;
+  }
+  if (outcome === "skipped") {
+    logRelayTransientSkip({
+      deliveryId: row.delivery_id,
+      eventName: row.event_name,
+      installationId: row.installation_id,
+      phase: "retry",
+    });
+  }
+  await env.DB
+    .prepare("UPDATE orb_relay_failures SET attempts = attempts + 1, last_attempt_at = datetime('now') WHERE delivery_id = ?")
+    .bind(row.delivery_id)
+    .run();
+}
+
 /** HMAC-SHA256 hex over the raw event body — the relay signature BOTH sides compute (the Orb with the decrypted
  *  enrollment secret, the container with its own ORB_ENROLLMENT_SECRET). Web Crypto (worker + node). */
 export async function relaySignature(secret: string, body: string): Promise<string> {
@@ -300,23 +393,12 @@ export async function retryFailedRelays(env: Env, opts?: { fetchImpl?: typeof fe
   if (!results.length) return;
 
   const retryRow = async (row: { delivery_id: string; event_name: string; installation_id: number; raw_body: string }) => {
-    const result = await forwardOrbEvent(
+    const outcome = await forwardOrbEvent(
       env,
       { eventName: row.event_name, installationId: row.installation_id, deliveryId: row.delivery_id, rawBody: row.raw_body },
       opts?.fetchImpl,
     );
-    // "skipped" is NOT always terminal: forwardOrbEvent also skips forwardable events when push relay is
-    // temporarily undeliverable (no relay_url yet, TOKEN_ENCRYPTION_SECRET absent during deploy, enrollment row
-    // mid re-register). Deleting those rows silently dropped webhook events that had already failed once.
-    // Only permanently non-forwardable events (outside RELAY_FORWARD_EVENTS, e.g. check_run) are obsolete.
-    if (result === "forwarded" || result === "queued" || (result === "skipped" && !RELAY_FORWARD_EVENTS.has(row.event_name))) {
-      await env.DB.prepare("DELETE FROM orb_relay_failures WHERE delivery_id = ?").bind(row.delivery_id).run();
-    } else {
-      await env.DB
-        .prepare("UPDATE orb_relay_failures SET attempts = attempts + 1, last_attempt_at = datetime('now') WHERE delivery_id = ?")
-        .bind(row.delivery_id)
-        .run();
-    }
+    await finalizeRelayFailureRetryRow(env, row, outcome);
   };
 
   for (let i = 0; i < results.length; i += RELAY_RETRY_CONCURRENCY) {

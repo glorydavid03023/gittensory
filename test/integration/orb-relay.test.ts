@@ -239,11 +239,22 @@ describe("relayForward (deferred forward + failure persistence, #orb-ack-fast)",
     expect(row).toMatchObject({ installation_id: 820, event_name: "pull_request" });
   });
 
-  it("does NOT persist when the forward is skipped (enrolled but no relay) and never throws", async () => {
+  it("persists a TRANSIENT skip (enrolled push mode, relay not registered yet) for the retry cron", async () => {
     const e = brokeredEnv();
+    const warnLog = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     await enroll(e, 821); // enrolled, but no relay registered → forwardOrbEvent skips before any fetch
     await expect(relayForward(e, { eventName: "pull_request", installationId: 821, deliveryId: "rf-skip", rawBody: "{}" })).resolves.toBeUndefined();
-    expect(await db(e).prepare("SELECT delivery_id FROM orb_relay_failures WHERE delivery_id='rf-skip'").first()).toBeFalsy();
+    const row = await db(e).prepare("SELECT installation_id, event_name FROM orb_relay_failures WHERE delivery_id='rf-skip'").first<{ installation_id: number; event_name: string }>();
+    expect(row).toMatchObject({ installation_id: 821, event_name: "pull_request" });
+    expect(warnLog.mock.calls.some(([line]) => String(line).includes("orb_relay_transient_skip") && String(line).includes('"phase":"initial"'))).toBe(true);
+    warnLog.mockRestore();
+  });
+
+  it("does NOT persist permanently non-forwardable skips (check_run)", async () => {
+    const e = brokeredEnv();
+    await enroll(e, 8211);
+    await relayForward(e, { eventName: "check_run", installationId: 8211, deliveryId: "rf-check-run", rawBody: "{}" });
+    expect(await db(e).prepare("SELECT delivery_id FROM orb_relay_failures WHERE delivery_id='rf-check-run'").first()).toBeFalsy();
   });
 });
 
@@ -382,11 +393,15 @@ describe("retryFailedRelays", () => {
 
   it("KEEPS retrying a forwardable event when forwardOrbEvent skips due to transient config (no relay URL)", async () => {
     const e = brokeredEnv();
+    const warnLog = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     await enroll(e, 9602); // enrolled push mode, relay not registered yet
     await storeRelayFailure(e, { deliveryId: "transient-skip", eventName: "pull_request", installationId: 9602, rawBody: "{}" });
     await retryFailedRelays(e);
-    const row = await db(e).prepare("SELECT attempts FROM orb_relay_failures WHERE delivery_id='transient-skip'").first<{ attempts: number }>();
+    const row = await db(e).prepare("SELECT attempts, last_attempt_at FROM orb_relay_failures WHERE delivery_id='transient-skip'").first<{ attempts: number; last_attempt_at: string | null }>();
     expect(row?.attempts).toBe(1); // transient skip must not delete the row — backoff and retry
+    expect(row?.last_attempt_at).toBeTruthy(); // follows normal retry bookkeeping, not a silent delete
+    expect(warnLog.mock.calls.some(([line]) => String(line).includes("orb_relay_transient_skip") && String(line).includes('"phase":"retry"'))).toBe(true);
+    warnLog.mockRestore();
   });
 
   it("KEEPS retrying when the encryption secret is temporarily missing", async () => {
