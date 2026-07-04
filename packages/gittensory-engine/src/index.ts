@@ -9,6 +9,14 @@ export {
   rankOpportunities,
   type OpportunityRankInput,
 } from "./opportunity-ranker.js";
+export {
+  explainOpportunityScore,
+  summarizeOpportunityFactors,
+  OPPORTUNITY_FACTOR_KEYS,
+  type OpportunityFactorKey,
+  type OpportunityScoreExplanation,
+  type OpportunityFactorSummary,
+} from "./opportunity-ranker-explain.js";
 export * from "./governor/rate-limit.js";
 export {
   GOVERNOR_LEDGER_EVENT_TYPES,

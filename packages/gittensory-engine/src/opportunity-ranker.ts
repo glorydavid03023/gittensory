@@ -23,7 +23,7 @@ export type OpportunityRankInput = {
 };
 
 /** Clamp a positive factor to [0, 1]; a non-finite value (NaN/±Infinity from a broken upstream) degrades to 0. */
-function clamp01(value: number): number {
+export function clamp01(value: number): number {
   if (!Number.isFinite(value)) return 0;
   return Math.min(1, Math.max(0, value));
 }
@@ -35,7 +35,7 @@ function clamp01(value: number): number {
  * maximum risk (1), never 0: a broken contention signal must not masquerade as a safe, uncontested opportunity
  * (mirroring the fail-closed convention in `src/signals/duplicate-winner.ts`, where sparse rows fail closed).
  */
-function clampRisk(value: number): number {
+export function clampRisk(value: number): number {
   if (!Number.isFinite(value)) return 1;
   return Math.min(1, Math.max(0, value));
 }
