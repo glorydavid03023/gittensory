@@ -536,6 +536,18 @@ export interface UnsafeAnyFinding {
   kind: "annotation" | "cast" | "assertion";
 }
 
+/** A common accessibility regression in newly added markup (#2026, part of #1499).
+ *  Reports file, line, and rule only — never string content. */
+export interface A11yFinding {
+  file: string;
+  line: number;
+  rule:
+    | "img-alt"
+    | "click-events-have-key-events"
+    | "label-control"
+    | "positive-tabindex";
+}
+
 /** An absolute HTTP(S) URL or raw IP:port endpoint hardcoded in non-test, non-config source (#2027, part of #1499).
  *  Reports location, kind, and a redacted/truncated host — never full paths or query strings. */
 export interface HardcodedUrlFinding {
@@ -597,6 +609,7 @@ export interface BriefFindings {
   deepNesting?: DeepNestingFinding[];
   errorSwallow?: ErrorSwallowFinding[];
   unsafeAny?: UnsafeAnyFinding[];
+  a11y?: A11yFinding[];
   i18n?: I18nFinding[];
   hardcodedUrl?: HardcodedUrlFinding[];
   commitLint?: CommitLintFinding[];

@@ -37,6 +37,7 @@ import { scanI18nRegression } from "./i18n-regression.js";
 import { scanErrorSwallow } from "./error-swallow.js";
 import { scanFloatingPromise } from "./floating-promise.js";
 import { scanSizeSmell } from "./size-smell.js";
+import { scanA11yRegression } from "./a11y-regression.js";
 import { scanCommitLint } from "./commit-lint.js";
 import { scanUnsafeAny } from "./unsafe-any.js";
 import { scanTerminology } from "./terminology.js";
@@ -1166,6 +1167,37 @@ export const ANALYZER_DESCRIPTORS = [
       return lines;
     },
     run: (req, { signal }) => scanUnsafeAny(req, signal),
+  }),
+  descriptor({
+    name: "a11y",
+    title: "Accessibility regressions",
+    category: "quality",
+    cost: "local",
+    defaultEnabled: true,
+    requires: ["files"],
+    limits: { maxFindings: 25, maxLineChars: 2000 },
+    docs: {
+      summary:
+        "Flags common accessibility regressions in newly added JSX/HTML markup lines.",
+      looksAt:
+        "Added lines in changed non-test .jsx/.tsx/.html/.vue files for missing img alt text, click-only handlers, unlabeled controls, and positive tabindex.",
+      reports:
+        "File, line, and rule: img-alt, click-events-have-key-events, label-control, or positive-tabindex.",
+      network: "Pure local analyzer. No external network call.",
+      notes:
+        "Structural markup heuristics only — buttons/links and controls with aria-label/id associations are not flagged.",
+    },
+    render: (findings, helpers) => {
+      if (!findings.length) return [];
+      const lines = ["### Accessibility regressions (added markup)"];
+      for (const item of findings) {
+        lines.push(
+          `- ${helpers.safeCodeSpan(`${item.file}:${item.line}`)} — ${helpers.safeCodeSpan(item.rule)}`,
+        );
+      }
+      return lines;
+    },
+    run: (req, { signal }) => scanA11yRegression(req, signal),
   }),
   descriptor({
     name: "i18n",

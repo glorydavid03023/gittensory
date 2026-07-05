@@ -53,6 +53,7 @@ const EXPECTED_ANALYZERS = [
   "deepNesting",
   "errorSwallow",
   "unsafeAny",
+  "a11y",
   "i18n",
   "commitLint",
 ];

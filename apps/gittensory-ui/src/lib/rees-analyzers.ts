@@ -1072,6 +1072,29 @@ export const REES_ANALYZERS = [
     },
   },
   {
+    name: "a11y",
+    title: "Accessibility regressions",
+    category: "quality",
+    cost: "local",
+    defaultEnabled: true,
+    profiles: ["fast", "balanced", "deep"],
+    requires: ["files"],
+    limits: {
+      maxFindings: 25,
+      maxLineChars: 2000,
+    },
+    docs: {
+      summary: "Flags common accessibility regressions in newly added JSX/HTML markup lines.",
+      looksAt:
+        "Added lines in changed non-test .jsx/.tsx/.html/.vue files for missing img alt text, click-only handlers, unlabeled controls, and positive tabindex.",
+      reports:
+        "File, line, and rule: img-alt, click-events-have-key-events, label-control, or positive-tabindex.",
+      network: "Pure local analyzer. No external network call.",
+      notes:
+        "Structural markup heuristics only — buttons/links and controls with aria-label/id associations are not flagged.",
+    },
+  },
+  {
     name: "i18n",
     title: "i18n regressions",
     category: "quality",
