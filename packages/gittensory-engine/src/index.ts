@@ -134,6 +134,7 @@ export {
   type ParsedMinerGoalSpec,
 } from "./miner-goal-spec.js";
 export {
+  computeMetadataLaneFit,
   computeMinerGoalLaneFit,
   isMinerRepoTargetable,
 } from "./miner-goal-lane-fit.js";

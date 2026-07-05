@@ -73,6 +73,41 @@ describe("opportunity metadata signals", () => {
     expect(input.potential).toBeGreaterThan(0);
   });
 
+  it("buildMetadataRankInput honors candidatePaths for path-aware lane fit", () => {
+    const pathBlocked = buildMetadataRankInput(
+      { ...base, labels: ["bug"], candidatePaths: ["secrets/credentials.ts"] },
+      [base],
+      {
+        nowMs: NOW,
+        goalSpecsByRepo: {
+          "acme/widgets": {
+            ...DEFAULT_MINER_GOAL_SPEC,
+            blockedPaths: ["secrets/**"],
+            wantedPaths: ["src/**"],
+            preferredLabels: ["bug"],
+          },
+        },
+      },
+    );
+    expect(pathBlocked.laneFit).toBe(0);
+
+    const pathMatch = buildMetadataRankInput(
+      { ...base, labels: ["bug"], candidatePaths: ["src/app.ts"] },
+      [base],
+      {
+        nowMs: NOW,
+        goalSpecsByRepo: {
+          "acme/widgets": {
+            ...DEFAULT_MINER_GOAL_SPEC,
+            wantedPaths: ["src/**"],
+            preferredLabels: ["bug"],
+          },
+        },
+      },
+    );
+    expect(pathMatch.laneFit).toBe(1);
+  });
+
   it("rankMetadataOpportunities keeps deterministic ordering for ties", () => {
     const tie = { potential: 0.8, feasibility: 0.8, laneFit: 1, freshness: 1, dupRisk: 0 };
     const ranked = rankMetadataOpportunities(

@@ -1,4 +1,4 @@
-import { computeMinerGoalLaneFit, isMinerRepoTargetable } from "./miner-goal-lane-fit.js";
+import { computeMetadataLaneFit, isMinerRepoTargetable } from "./miner-goal-lane-fit.js";
 import { DEFAULT_MINER_GOAL_SPEC, type MinerGoalSpec } from "./miner-goal-spec.js";
 import { computeOpportunityCompetition } from "./opportunity-competition.js";
 import { computeOpportunityFreshness } from "./opportunity-freshness.js";
@@ -13,6 +13,8 @@ export type MetadataCandidateIssue = {
   issueNumber: number;
   title: string;
   labels: readonly string[];
+  /** When present, lane fit uses path+label goal matching instead of labels alone. */
+  candidatePaths?: readonly string[] | undefined;
   commentsCount: number;
   createdAt?: string | null | undefined;
   updatedAt?: string | null | undefined;
@@ -207,7 +209,7 @@ export function buildMetadataRankInput(
   return {
     potential: computeMetadataPotential(issue),
     feasibility: computeMetadataFeasibility(issue, context.nowMs),
-    laneFit: computeMinerGoalLaneFit(issue, goalSpec),
+    laneFit: computeMetadataLaneFit(issue, goalSpec),
     freshness: computeOpportunityFreshness(
       /* v8 ignore next */
       [{ state: "open", updatedAt: issue.updatedAt ?? null, createdAt: issue.createdAt ?? null }],

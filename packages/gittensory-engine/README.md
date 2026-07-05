@@ -395,6 +395,7 @@ describe step ordering via `dependsOn` but never actuate anything.
 - `computeMetadataPotential` — label-based upside estimate
 - `computeMetadataFeasibility` — comment load + issue age + title quality
 - `computeMetadataDupRisk` — same-repo title overlap inside a candidate batch
+- `computeMetadataLaneFit` — label-only lane fit by default; honors optional `candidatePaths` via `computeLaneFit`
 - `buildMetadataRankInput` — composes freshness, competition, lane fit, and the metadata heuristics
 - `rankMetadataOpportunities` — sorts candidates with `rankOpportunities`
 
