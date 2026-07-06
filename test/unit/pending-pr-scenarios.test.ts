@@ -403,6 +403,51 @@ describe("pending PR scenario detection", () => {
     ).toMatchObject({ pendingMergedPrCount: 1, pendingScenarioObserved: true, scenarioNotes: ["observed"] });
   });
 
+  it("treats GitHub draft flags as draft work even without title/label heuristics", () => {
+    const classified = classifyOpenPullRequest({
+      pr: pr({ number: 92, title: "Ready change", labels: [], isDraft: true }),
+      roleContext: outsideContributorRole,
+      reviews: [approvedReview(92)],
+      checks: [],
+    });
+    expect(classified.classification).toBe("draft");
+  });
+
+  it("classifies PRs when review/check maps are omitted and timestamps are missing or invalid", () => {
+    const detection = detectPendingPrScenario({
+      login: "miner-a",
+      repoFullName: "entrius/allways-ui",
+      pullRequests: [pr({ number: 88 })],
+      roleContext: outsideContributorRole,
+      openPrCount: 1,
+    });
+    expect(detection).toBeNull();
+    expect(
+      classifyOpenPullRequest({
+        pr: pr({ number: 89, updatedAt: undefined, createdAt: daysAgo(2) }),
+        roleContext: outsideContributorRole,
+        reviews: [approvedReview(89)],
+        checks: [],
+      }).classification,
+    ).toBe("merge_ready");
+    expect(
+      classifyOpenPullRequest({
+        pr: pr({ number: 90, updatedAt: undefined, createdAt: undefined }),
+        roleContext: outsideContributorRole,
+        reviews: [approvedReview(90)],
+        checks: [],
+      }).classification,
+    ).toBe("stale_likely_close");
+    expect(
+      classifyOpenPullRequest({
+        pr: pr({ number: 91, updatedAt: "not-a-date", createdAt: "also-invalid" }),
+        roleContext: outsideContributorRole,
+        reviews: [approvedReview(91)],
+        checks: [],
+      }).classification,
+    ).toBe("stale_likely_close");
+  });
+
   it("loads cached reviews and checks for contributor open PRs", async () => {
     const env = {} as Env;
     vi.spyOn(repositories, "listPullRequestReviews").mockResolvedValue([approvedReview(70)]);

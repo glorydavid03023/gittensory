@@ -908,6 +908,10 @@ NOVELTY_BONUS_SCALAR = 3
     // Regex metacharacters in a literal key stay literal: `.` matches only a dot, not any char.
     expect(labelMultiplierFor({ "v1.0": 1.1 }, ["v1.0"])).toBe(1.1);
     expect(labelMultiplierFor({ "v1.0": 1.1 }, ["v1x0"])).toBe(1);
+    // `**/` counts as one wildcard group and matches across path-like label segments.
+    expect(labelMultiplierFor({ "**/bug": 1.45 }, ["feature/bug"])).toBe(1.45);
+    expect(labelMultiplierFor({ "public/**/*.json": 1.2 }, ["public/release/config.json"])).toBe(1.2);
+    expect(labelMultiplierFor({ "**bug": 1.35 }, ["feature-bug"])).toBe(1.35);
     // When several patterns match, the highest multiplier wins (mirrors upstream `max(...)`).
     expect(labelMultiplierFor({ "kind/*": 1.1, "*/bug": 1.6 }, ["kind/bug"])).toBe(1.6);
     // Literal keys are unchanged — exact match, parity-preserving for every existing config.
@@ -990,7 +994,37 @@ NOVELTY_BONUS_SCALAR = 3
     expect(notRequired.branchEligibility).toMatchObject({ required: false, status: "not_required", evidence: "provided", source: "user_supplied" });
     expect(notRequired.scoreEstimate.issueMultiplier).toBe(1);
     expect(notRequired.blockedBy.map((blocker) => blocker.code)).not.toContain("branch_eligibility_missing");
-    expect(JSON.stringify({ eligible, ineligible, missing, unknown, implicitUnknown, notRequired })).not.toMatch(/guaranteed payout|wallet|hotkey|farming/i);
+    const userSuppliedBranch = buildScorePreview({
+      repo,
+      snapshot,
+      input: {
+        ...baseInput,
+        branchEligibility: { status: "not_required", source: "user_supplied" } as never,
+      },
+    });
+    const unconfirmedGithubBranch = buildScorePreview({
+      repo,
+      snapshot,
+      input: {
+        ...baseInput,
+        branchEligibility: { status: "not_required", source: "github_metadata" } as never,
+      },
+    });
+    expect(userSuppliedBranch.linkedIssueMultiplier.reason).toMatch(/user-supplied/i);
+    expect(userSuppliedBranch.scoreEstimate.issueMultiplier).toBe(1);
+    expect(unconfirmedGithubBranch.linkedIssueMultiplier.reason).toMatch(/not confirmed/i);
+    expect(unconfirmedGithubBranch.scoreEstimate.issueMultiplier).toBe(1);
+    const staleEligibleBranch = buildScorePreview({
+      repo,
+      snapshot,
+      input: {
+        ...baseInput,
+        branchEligibility: { status: "eligible", source: "github_metadata", stale: true },
+      },
+    });
+    expect(staleEligibleBranch.linkedIssueMultiplier.reason).toMatch(/stale/i);
+    expect(staleEligibleBranch.scoreEstimate.issueMultiplier).toBe(1);
+    expect(JSON.stringify({ eligible, ineligible, missing, unknown, implicitUnknown, notRequired, userSuppliedBranch, unconfirmedGithubBranch, staleEligibleBranch })).not.toMatch(/guaranteed payout|wallet|hotkey|farming/i);
   });
 
   it("requires solved-by-PR validation before applying the standard linked-issue multiplier", () => {
