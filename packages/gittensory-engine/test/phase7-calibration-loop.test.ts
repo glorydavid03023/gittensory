@@ -306,6 +306,22 @@ test("computePhase7CalibrationLoop combines historical-replay and pr_outcome sig
   assert.equal(result.bySource.pr_outcome.sampleSize, 20);
 });
 
+test("computePhase7CalibrationLoop reports a NEGATIVE delta when combined accuracy is below the documented baseline", () => {
+  // Both sources at 0.5 accuracy → combinedAccuracy 0.5, which is 0.12 BELOW the 0.62 documented baseline. The
+  // delta is a signed deviation, so a below-baseline regression must surface as -0.12, not be flattened to 0.
+  const result = computePhase7CalibrationLoop({
+    config: enabledConfig(),
+    prOutcome: sufficientPrOutcome(0.5),
+    historicalReplay: healthyReplay(0.5),
+    now: NOW,
+  });
+
+  assert.equal(result.combinedAccuracy, 0.5);
+  assert.equal(result.deltaFromBaseline, -0.12);
+  // The Markdown audit surfaces the signed magnitude, so the regression is visible to an operator.
+  assert.match(renderPhase7CalibrationAuditMarkdown(result), /delta from baseline: -12\.00 percentage points/);
+});
+
 test("computePhase7CalibrationLoop permits autonomy increases only when both sources meet the threshold", () => {
   const passing = computePhase7CalibrationLoop({
     config: enabledConfig({ autonomyIncreaseMinAccuracy: 0.7 }),

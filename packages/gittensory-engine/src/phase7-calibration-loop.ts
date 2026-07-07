@@ -118,6 +118,14 @@ function roundScore(value: number): number {
   return Math.round(Math.min(1, Math.max(0, value)) * 1_000_000) / 1_000_000;
 }
 
+/** Round a SIGNED value to 6 dp WITHOUT the [0, 1] clamp `roundScore` applies to accuracy scores. A baseline
+ *  delta legitimately ranges over [-baseline, 1 - baseline], so a below-baseline calibration run must surface as a
+ *  negative deviation — clamping it to 0 would report a regression as "on baseline" and defeat the whole point of
+ *  tracking accuracy against the documented baseline. */
+function roundDelta(value: number): number {
+  return Math.round(value * 1_000_000) / 1_000_000;
+}
+
 function finiteNonNegative(value: number | undefined, fallback: number): number {
   if (value === undefined) return fallback;
   if (!Number.isFinite(value) || value < 0) return 0;
@@ -462,7 +470,7 @@ export function computePhase7CalibrationLoop(input: {
         );
 
   const deltaFromBaseline =
-    combinedAccuracy === null ? null : roundScore(combinedAccuracy - DOCUMENTED_CALIBRATION_BASELINE);
+    combinedAccuracy === null ? null : roundDelta(combinedAccuracy - DOCUMENTED_CALIBRATION_BASELINE);
 
   const schedule = shouldScheduleHistoricalReplayRun({
     config,
