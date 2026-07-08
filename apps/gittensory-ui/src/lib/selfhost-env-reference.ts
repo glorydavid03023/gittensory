@@ -326,6 +326,14 @@ export const SELFHOST_ENV_REFERENCE_ROWS: SelfHostEnvReferenceRow[] = [
     firstReference: "src/selfhost/preflight.ts",
   },
   {
+    name: "PUBLIC_ORIGIN_ACKNOWLEDGED",
+    firstReference: "src/server.ts",
+  },
+  {
+    name: "PUBLIC_SITE_ORIGIN",
+    firstReference: "src/server.ts",
+  },
+  {
     name: "QDRANT_API_KEY",
     firstReference: "src/selfhost/qdrant-vectorize.ts",
   },
@@ -486,6 +494,8 @@ export const SELFHOST_ENV_REFERENCE_MARKDOWN = [
   "| `PGVECTOR_ENABLED` | `src/server.ts` |",
   "| `PORT` | `src/server.ts` |",
   "| `PUBLIC_API_ORIGIN` | `src/selfhost/preflight.ts` |",
+  "| `PUBLIC_ORIGIN_ACKNOWLEDGED` | `src/server.ts` |",
+  "| `PUBLIC_SITE_ORIGIN` | `src/server.ts` |",
   "| `QDRANT_API_KEY` | `src/selfhost/qdrant-vectorize.ts` |",
   "| `QDRANT_DIM` | `src/selfhost/qdrant-vectorize.ts` |",
   "| `QDRANT_URL` | `src/server.ts` |",

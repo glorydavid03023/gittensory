@@ -47,6 +47,8 @@ import {
   buildHealthBody,
   codexAuthReadinessProbe,
   githubAppReadinessProbe,
+  publicOriginAcknowledgedGaugeValue,
+  publicOriginReachabilityAdvisory,
   readiness,
   sqliteBackupAdvisory,
   type ReadinessProbe,
@@ -392,6 +394,24 @@ async function main(): Promise<void> {
       }),
     );
 
+  // Public-origin advisory (JSONbored/gittensory#4180): warn LOUDLY at boot if PUBLIC_API_ORIGIN/
+  // PUBLIC_SITE_ORIGIN look like a private/internal hostname, so an operator doesn't run for weeks with every
+  // visual-capture screenshot silently rendering as a broken image in public PR comments.
+  const publicOriginOpts = {
+    publicApiOrigin: process.env.PUBLIC_API_ORIGIN,
+    publicSiteOrigin: process.env.PUBLIC_SITE_ORIGIN,
+    acknowledged: process.env.PUBLIC_ORIGIN_ACKNOWLEDGED === "true",
+  };
+  const publicOriginAdvisory = publicOriginReachabilityAdvisory(publicOriginOpts);
+  if (publicOriginAdvisory)
+    console.warn(
+      JSON.stringify({
+        level: "warn",
+        event: "selfhost_public_origin_advisory",
+        message: publicOriginAdvisory,
+      }),
+    );
+
   const applied = await runSelfHostMigrations(
     backend.db,
     process.env.MIGRATIONS_DIR ?? "migrations",
@@ -701,6 +721,7 @@ async function main(): Promise<void> {
     Math.floor((Date.now() - startedAt) / 1000),
   );
   gauge("gittensory_backup_acknowledged", () => backupAcknowledgedGaugeValue(sqliteBackupOpts));
+  gauge("gittensory_public_origin_acknowledged", () => publicOriginAcknowledgedGaugeValue(publicOriginOpts));
   // Pre-initialize job counters to 0 so they appear in the first Prometheus scrape (lazy counters
   // created on first use would otherwise cause "No data" in Grafana until the first job event).
   for (const c of [
