@@ -253,6 +253,7 @@ export {
   parseMinerGoalSpecContent,
   discoverMinerGoalSpecPath,
   MINER_GOAL_SPEC_FILENAMES,
+  type FeasibilityGatePolicy,
   type MinerGoalSpec,
   type MinerIssueDiscoveryPolicy,
   type ParsedMinerGoalSpec,
