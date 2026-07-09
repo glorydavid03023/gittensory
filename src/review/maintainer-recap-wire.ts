@@ -6,14 +6,12 @@
 import { listRepositories } from "../db/repositories";
 import { isAgentConfigured } from "../settings/autonomy";
 import { resolveRepositorySettings } from "../settings/repository-settings";
-import { loadGatePrecisionReport } from "../services/gate-precision";
 import { buildRepoOutcomeCalibration } from "../services/outcome-calibration";
-import { buildMaintainerRecap, type MaintainerRecapRepoInput } from "../services/maintainer-recap";
-import { deliverRecapToDiscord } from "../services/notify-discord";
+import { runMaintainerRecap, type MaintainerRecapRepoInput, type RunMaintainerRecapResult } from "../services/maintainer-recap";
+import { loadGatePrecisionReport } from "../services/gate-precision";
 import { loadRepoFocusManifest } from "../signals/focus-manifest-loader";
 import { resolveGittensorySelfRepoFullName } from "../config/gittensory-repo-focus-manifest";
-import { errorMessage, nowIso } from "../utils/json";
-import type { RecapReport } from "../types";
+import { errorMessage } from "../utils/json";
 
 /** A manifest-sourced enable/cadence override (#2250) -- the `maintainerRecap` block of the gittensory
  *  self-repo's `.gittensory.yml` (see FocusManifestMaintainerRecapConfig). `present: false` (no block, or the
@@ -125,14 +123,11 @@ export async function resolveMaintainerRecapManifestOverride(env: Env): Promise<
 }
 
 /**
- * Build the cross-repo RecapReport (#2239) over the recap's scan repos and deliver it to Discord. A per-repo
- * aggregator failure is logged and that repo is skipped -- one repo's D1 hiccup must not blank the whole
- * digest (mirrors ops-wire.ts's runOpsAlerts). deliverRecapToDiscord itself never throws (best-effort webhook).
+ * Load aggregator inputs for every scan repo, then delegate to {@link runMaintainerRecap} for build → format →
+ * dual-channel delivery. A per-repo aggregator failure is logged and that repo is skipped — one repo's D1 hiccup
+ * must not blank the whole digest (mirrors ops-wire.ts's runOpsAlerts).
  */
-export async function runMaintainerRecapJob(
-  env: Env,
-  windowDays?: number,
-): Promise<{ report: RecapReport; delivery: { sent: boolean; reason?: string } }> {
+export async function runMaintainerRecapJob(env: Env, windowDays?: number): Promise<RunMaintainerRecapResult> {
   const resolvedWindowDays = windowDays ?? DEFAULT_RECAP_WINDOW_DAYS;
   const repoNames = await recapScanRepos(env);
   const repos: MaintainerRecapRepoInput[] = [];
@@ -149,7 +144,5 @@ export async function runMaintainerRecapJob(
       );
     }
   }
-  const report = buildMaintainerRecap({ generatedAt: nowIso(), windowDays: resolvedWindowDays, repos });
-  const delivery = await deliverRecapToDiscord(env, report);
-  return { report, delivery };
+  return runMaintainerRecap(env, { windowDays: resolvedWindowDays, repos });
 }

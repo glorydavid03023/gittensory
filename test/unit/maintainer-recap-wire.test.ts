@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { isRecapEnabled, resolveMaintainerRecapManifestOverride, runMaintainerRecapJob, shouldFireMaintainerRecap } from "../../src/review/maintainer-recap-wire";
+import type { RunMaintainerRecapResult } from "../../src/services/maintainer-recap";
 import { updatePullRequestSlopAssessment, upsertPullRequestFromGitHub, upsertRepositorySettings } from "../../src/db/repositories";
 import { upsertRepoFocusManifest } from "../../src/signals/focus-manifest-loader";
 import { createTestEnv } from "../helpers/d1";
@@ -7,6 +8,12 @@ import { createTestEnv } from "../helpers/d1";
 const SELF_REPO = "JSONbored/gittensory";
 
 const HOOK = "https://discord.com/api/webhooks/123/abc";
+
+function ranRecap(result: RunMaintainerRecapResult): Extract<RunMaintainerRecapResult, { skipped: false }> {
+  expect(result.skipped).toBe(false);
+  if (result.skipped) throw new Error("expected recap job to run");
+  return result;
+}
 
 // Wrap env.DB.prepare so any SQL matching `pattern` throws, exercising a fail-safe catch; every other
 // query delegates to the real test DB unchanged. Mirrors ops-wire.test.ts's poisonDbPrepare.
@@ -169,9 +176,10 @@ describe("runMaintainerRecapJob — cross-repo digest (#1963, #2248)", () => {
     await seedMergedPr(env, "owner/beta", 2);
     const posted = stubDiscordFetch();
 
-    const { report, delivery } = await runMaintainerRecapJob(env);
+    const { report, delivery } = ranRecap(await runMaintainerRecapJob(env));
 
-    expect(delivery).toEqual({ sent: true });
+    expect(delivery.discord).toEqual({ sent: true });
+    expect(delivery.slack.sent).toBe(false);
     expect(report.windowDays).toBe(7); // default when omitted
     expect(report.repos.map((r) => r.repoFullName).sort()).toEqual(["owner/alpha", "owner/beta"]);
     expect(report.totals.merged).toBe(3); // 1 (alpha) + 2 (beta)
@@ -184,7 +192,7 @@ describe("runMaintainerRecapJob — cross-repo digest (#1963, #2248)", () => {
     await seedMergedPr(env, "owner/alpha", 1);
     stubDiscordFetch();
 
-    const { report } = await runMaintainerRecapJob(env, 30);
+    const { report } = ranRecap(await runMaintainerRecapJob(env, 30));
 
     expect(report.windowDays).toBe(30);
   });
@@ -198,7 +206,7 @@ describe("runMaintainerRecapJob — cross-repo digest (#1963, #2248)", () => {
     await seedMergedPr(env, "owner/unconfigured", 1);
     stubDiscordFetch();
 
-    const { report } = await runMaintainerRecapJob(env);
+    const { report } = ranRecap(await runMaintainerRecapJob(env));
 
     expect(report.repos.map((r) => r.repoFullName)).toEqual(["owner/configured"]);
   });
@@ -214,7 +222,7 @@ describe("runMaintainerRecapJob — cross-repo digest (#1963, #2248)", () => {
     poisonDbPrepare(env, /"repository_settings"/i);
     stubDiscordFetch();
 
-    const { report } = await runMaintainerRecapJob(env);
+    const { report } = ranRecap(await runMaintainerRecapJob(env));
 
     expect(report.repos.map((r) => r.repoFullName).sort()).toEqual(["owner/alpha", "owner/beta"]);
   });
@@ -228,10 +236,11 @@ describe("runMaintainerRecapJob — cross-repo digest (#1963, #2248)", () => {
     const warnings = vi.spyOn(console, "warn").mockImplementation(() => {});
     stubDiscordFetch();
 
-    const { report, delivery } = await runMaintainerRecapJob(env); // resolves (never throws)
+    const { report, delivery } = ranRecap(await runMaintainerRecapJob(env)); // resolves (never throws)
 
     expect(report.repos).toEqual([]);
-    expect(delivery).toEqual({ sent: true });
+    expect(delivery.discord).toEqual({ sent: true });
+    expect(delivery.slack.sent).toBe(false);
     const logged = warnings.mock.calls.map((c) => String(c[0])).find((line) => line.includes("maintainer_recap_repo_error") && line.includes("owner/alpha"));
     expect(logged).toBeDefined();
   });
@@ -240,10 +249,11 @@ describe("runMaintainerRecapJob — cross-repo digest (#1963, #2248)", () => {
     const env = createTestEnv({ DISCORD_WEBHOOK_URL: HOOK });
     stubDiscordFetch();
 
-    const { report, delivery } = await runMaintainerRecapJob(env);
+    const { report, delivery } = ranRecap(await runMaintainerRecapJob(env));
 
     expect(report.repos).toEqual([]);
     expect(report.totals.gateFalsePositiveRate).toBeNull();
-    expect(delivery).toEqual({ sent: true });
+    expect(delivery.discord).toEqual({ sent: true });
+    expect(delivery.slack.sent).toBe(false);
   });
 });
