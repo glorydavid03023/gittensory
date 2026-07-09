@@ -67,3 +67,7 @@ The repo-root [`docker-compose.yml`](../../docker-compose.yml) documents the **s
 - `gittensory-miner status` and `gittensory-miner doctor` make **no network calls**.
 - Discovery/ranking primitives that touch GitHub only run when explicitly invoked and only perform documented GETs unless a future command says otherwise.
 - Operators own secret injection; images and packages ship without embedded tokens.
+
+## Optional hosted discovery plane (opt-in)
+
+The Phase 6 **hosted discovery-index** is **off by default** — unlike Orb fleet export (`ORB_AIR_GAP` is the only opt-out). Operators who want cross-fleet metadata queries or soft-claim coordination must opt in explicitly. See [`docs/discovery-plane-operator-guide.md`](docs/discovery-plane-operator-guide.md) ([#4309](https://github.com/JSONbored/gittensory/issues/4309), placeholder until [#4300](https://github.com/JSONbored/gittensory/issues/4300) / [#4301](https://github.com/JSONbored/gittensory/issues/4301) / [#4302](https://github.com/JSONbored/gittensory/issues/4302) ship).
