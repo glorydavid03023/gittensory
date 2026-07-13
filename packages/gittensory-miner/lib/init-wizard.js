@@ -1,6 +1,5 @@
 import { chmodSync, existsSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { createInterface } from "node:readline/promises";
 
 import { CODING_AGENT_DRIVER_CONFIG_ENV, CODING_AGENT_DRIVER_NAMES } from "@loopover/engine";
 
@@ -125,7 +124,7 @@ export function writeEnvFile(envPath, contents) {
 
 /** Yes/no answer; anything other than an explicit yes is a no (safe default for a destructive overwrite). */
 function isAffirmative(raw) {
-  return /^(y|yes)$/i.test(typeof raw === "string" ? raw.trim() : "");
+  return /^(y|yes)$/i.test(String(raw).trim());
 }
 
 /**
@@ -174,7 +173,7 @@ export async function runInitWizard({ stateDir, io, env = process.env, now = new
     const suffix = prompt.defaultValue ? ` [${prompt.defaultValue}]` : " [skip]";
     const answer = await io.prompt(`${prompt.label}${suffix}`);
     if (prompt.envKey.endsWith("_TIMEOUT_MS")) {
-      const timeout = normalizeTimeoutMs(answer, Number(prompt.defaultValue) || DEFAULT_TIMEOUT_MS);
+      const timeout = normalizeTimeoutMs(answer, DEFAULT_TIMEOUT_MS);
       if (timeout === null) {
         io.print(`  not a positive whole number — leaving ${prompt.envKey} unset (the driver default applies).`);
         continue;
@@ -223,37 +222,96 @@ export async function runInteractiveInit(args = [], env = process.env, io = crea
     // operator restart their shell to pick the new `.env` up.
     return runDoctor([], { ...env, ...outcome.values }, process.cwd());
   } finally {
-    io.close?.();
+    io.close();
   }
 }
 
+/** Ctrl-C. Raw mode stops the terminal from raising SIGINT for us, so the reader must honour it explicitly. */
+const ETX = "\u0003";
+/** Backspace / DEL. Raw mode disables the terminal's line editor, so the reader does its own erase. */
+const BACKSPACE = new Set(["\u0008", "\u007f"]);
+
 /**
- * Production stdio adapter. `promptMasked` suppresses readline's echo for the duration of the answer so the PAT
- * never reaches the terminal (or a scrollback buffer / screen-share).
+ * Production stdio adapter.
+ *
+ * Deliberately does NOT use `readline` for the masked prompt. `readline`'s terminal mode re-renders the current
+ * line through a path that echoes the typed characters, and on a real TTY the terminal driver echoes them anyway —
+ * so a PAT would still land on screen (and in scrollback / a screen-share). Instead this reads the line itself and
+ * disables the TTY's own echo via RAW MODE for the duration of the secret, and never writes the characters out.
+ * On a non-TTY (a pipe, or a test's stream) there is no echo to suppress and nothing is written either way.
+ *
+ * A `pending` buffer carries over any bytes read past the end of a line, so piped multi-line input (`printf 'a\nb\n'`)
+ * does not silently drop the answers that arrived in the same chunk.
  */
 export function createStdioWizardIo(input = process.stdin, output = process.stdout) {
-  const rl = createInterface({ input, output, terminal: true });
+  let pending = "";
+
+  /** Pull one complete line out of `pending`, or `null` when no newline has arrived yet. Handles CRLF. */
+  function takeBufferedLine() {
+    const index = pending.search(/[\r\n]/);
+    if (index === -1) return null;
+    const line = pending.slice(0, index);
+    pending = pending.slice(index + 1);
+    if (pending.startsWith("\n")) pending = pending.slice(1); // a CR consumed above, drop its paired LF
+    return line;
+  }
+
+  function readLine({ masked }) {
+    return new Promise((resolve, reject) => {
+      const buffered = takeBufferedLine();
+      if (buffered !== null) {
+        resolve(buffered);
+        return;
+      }
+
+      const canRaw = Boolean(input.isTTY) && typeof input.setRawMode === "function";
+      const wasRaw = canRaw && input.isRaw === true;
+      if (masked && canRaw) input.setRawMode(true);
+      input.setEncoding("utf8");
+
+      const settle = (finish, value) => {
+        input.off("data", onData);
+        if (masked && canRaw) input.setRawMode(wasRaw);
+        finish(value);
+      };
+
+      const onData = (chunk) => {
+        for (const char of String(chunk)) {
+          if (char === ETX) {
+            settle(reject, new Error("input_cancelled"));
+            return;
+          }
+          if (BACKSPACE.has(char)) {
+            pending = pending.slice(0, -1);
+            continue;
+          }
+          pending += char;
+        }
+        const line = takeBufferedLine();
+        if (line !== null) settle(resolve, line);
+      };
+
+      input.on("data", onData);
+      input.resume();
+    });
+  }
+
   return {
     print(line) {
       output.write(`${line}\n`);
     },
     async prompt(question) {
-      return rl.question(`${question} `);
+      output.write(`${question} `);
+      return (await readLine({ masked: false })).trim();
     },
     async promptMasked(question) {
       output.write(`${question} `);
-      const restore = rl._writeToOutput;
-      // Swallow every echoed keystroke while the secret is being typed.
-      rl._writeToOutput = () => {};
-      try {
-        return await rl.question("");
-      } finally {
-        rl._writeToOutput = restore;
-        output.write("\n");
-      }
+      const answer = await readLine({ masked: true });
+      output.write("\n"); // the newline the suppressed echo would otherwise have produced
+      return answer.trim();
     },
     close() {
-      rl.close();
+      input.pause();
     },
   };
 }

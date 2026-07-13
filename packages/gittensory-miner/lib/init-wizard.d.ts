@@ -9,7 +9,7 @@ export type WizardIo = {
   prompt(question: string): Promise<string>;
   /** Reads an answer WITHOUT echoing it — used for the GitHub token. */
   promptMasked(question: string): Promise<string>;
-  close?(): void;
+  close(): void;
 };
 
 export type CompanionPrompt = {
@@ -39,5 +39,15 @@ export function runInitWizard(options: {
   env?: Record<string, string | undefined>;
   now?: string;
 }): Promise<InitWizardResult>;
+
+/**
+ * `gittensory-miner init --interactive`: initializes state, runs the guided flow, then re-runs `doctor` over the
+ * collected values. Resolves to the process exit code.
+ */
+export function runInteractiveInit(
+  args?: string[],
+  env?: Record<string, string | undefined>,
+  io?: WizardIo,
+): Promise<number>;
 
 export function createStdioWizardIo(input?: NodeJS.ReadableStream, output?: NodeJS.WritableStream): WizardIo;
