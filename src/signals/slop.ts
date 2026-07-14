@@ -1,5 +1,5 @@
 // PR-side slop-assessment shim (#5133). The canonical implementation now lives at
-// packages/loopover-engine/src/signals/slop.ts, extracted so the published gittensory-mcp/gittensory-miner
+// packages/loopover-engine/src/signals/slop.ts, extracted so the published loopover-mcp/loopover-miner
 // CLIs can run the SAME deterministic self-review scorer the live gate uses (imported via relative source
 // path, not the published package, to match this repo's existing engine-consumption convention — see e.g.
 // src/signals/test-evidence.ts — and to avoid depending on the engine package's built dist/ output, which is

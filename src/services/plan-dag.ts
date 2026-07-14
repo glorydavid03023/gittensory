@@ -1,5 +1,5 @@
 // #783 multi-step action DAG. A miner plan is a set of steps with dependencies ("close 1 stale PR → land 2 →
-// open a new direct PR"); gittensory tracks per-step state + retries so the plan survives across MCP tool
+// open a new direct PR"); loopover tracks per-step state + retries so the plan survives across MCP tool
 // calls and resumes where it left off. PURE + deterministic — the harness performs each step's real work and
 // reports the result back; this module only advances the state machine.
 

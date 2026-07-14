@@ -1,13 +1,13 @@
 // LoopOver Orb (#1255) — fleet calibration EXPORTER. Each self-hosted instance already records de-noised
 // ground truth in review_audit (gate_decision + pr_outcome + reversal_reopened/reversal_reverted) via the
-// engine's outcomes-wire. This ships an anonymized, reversal-aware signal UP to gittensory's central
+// engine's outcomes-wire. This ships an anonymized, reversal-aware signal UP to loopover's central
 // collector so the gate can be calibrated across the whole self-host fleet.
 //
 // Export is ALWAYS ON once the GitHub App is configured (the fleet-telemetry contract of self-hosting) —
 // there is no opt-out flag. It self-gates on a configured App private key (no App → no review data to
 // export anyway) and anonymizes with a DEDICATED, per-instance secret generated once and persisted in
 // system_flags (never the App private key or the webhook-verification secret — key separation).
-//   ORB_COLLECTOR_URL=<url>   — endpoint (default: gittensory's hosted collector)
+//   ORB_COLLECTOR_URL=<url>   — endpoint (default: loopover's hosted collector)
 //   ORB_AIR_GAP=true          — air-gapped/offline deployments only: compute locally, never send
 //   ORB_ANONYMIZE=true        — HMAC-hash repo/PR before export (default: true)
 //   ORB_COLLECTOR_TOKEN=<secret> — bearer credential for the hosted collector
@@ -161,7 +161,7 @@ export async function exportOrbBatch(db: D1Database, batchSize = 200, fetchFn: t
   const brokered = Boolean((process.env.ORB_ENROLLMENT_SECRET ?? "").trim());
   if (!brokered && !(process.env.GITHUB_APP_PRIVATE_KEY ?? "")) return 0;
 
-  // gittensory's hosted collector. No shared secret is sent: repo/PR identifiers are HMAC'd with this
+  // loopover's hosted collector. No shared secret is sent: repo/PR identifiers are HMAC'd with this
   // instance's DEDICATED anonymization secret (a 256-bit random key generated once and persisted in
   // system_flags — see getOrCreateAnonSecret), single-purpose and never the App key, so the collector
   // (which never holds it) can never de-anonymize them.

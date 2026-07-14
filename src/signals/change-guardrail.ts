@@ -1,5 +1,5 @@
 // Convergence safety: the hard-guardrail path check for the auto-maintain layer (#778). Changed paths that
-// match a repo's configured hardGuardrailGlobs force MANUAL review — gittensory must never auto-merge OR
+// match a repo's configured hardGuardrailGlobs force MANUAL review — loopover must never auto-merge OR
 // auto-close a PR that touches a guarded path. Ported verbatim from
 // reviewbot core/change-classifier.ts — the mechanism that prevents the awesome-claude #4196 incident class
 // (a weakened policy script auto-merging because its path wasn't guarded). Pure + dependency-free.
@@ -118,7 +118,7 @@ export function matchesAny(path: string, globs: string[]): boolean {
 
 /**
  * The changed paths (if any) that trip a hard guardrail. A non-empty result means the PR touches a guarded
- * path and MUST fall through to a human — gittensory may neither auto-merge nor auto-close it. Pure.
+ * path and MUST fall through to a human — loopover may neither auto-merge nor auto-close it. Pure.
  */
 export function changedPathsHittingGuardrail(changedPaths: string[], hardGuardrailGlobs: string[]): string[] {
   if (hardGuardrailGlobs.length === 0) return [];

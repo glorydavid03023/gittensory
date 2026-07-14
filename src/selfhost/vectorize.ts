@@ -1,5 +1,5 @@
 // SQLite-backed Vectorize adapter for self-host RAG (#979). Implements the Cloudflare `Vectorize` binding
-// surface (upsert / query / deleteByIds) that gittensory's RAG (reviewVectorAdapter) wraps, backed by a
+// surface (upsert / query / deleteByIds) that loopover's RAG (reviewVectorAdapter) wraps, backed by a
 // SQLite table with brute-force cosine similarity. For a repo's worth of chunks (hundreds–few-thousand
 // vectors per namespace) this is fast enough; namespaces (one per repo) keep each query's candidate set
 // small. Embeddings come from the OpenAI-compatible AI adapter's /embeddings path (e.g. Ollama bge-m3, 1024-d).

@@ -1,7 +1,7 @@
 // LoopOver AI maintainer review (the `aiReview` capability).
 //
 // Two layers, both opt-in and both fail-safe (no AI / errors / over-budget / unsafe output → no public
-// text and no gate finding; gittensory NEVER blocks because the model spoke):
+// text and no gate finding; loopover NEVER blocks because the model spoke):
 //
 //   • Advisory notes — a concise maintainer-style write-up (assessment + suggestions + risks). When the
 //     repo has BYOK configured, the maintainer's own frontier model (Anthropic/OpenAI) writes it;

@@ -485,7 +485,7 @@ describe("createChainAi (fallback)", () => {
     const result = await chain.run("m", {
       prompt: "review this diff",
       jobId: "delivery-123",
-      repoFullName: "JSONbored/gittensory",
+      repoFullName: "JSONbored/loopover",
       pullNumber: 42,
       attempt: 0,
     });
@@ -498,8 +498,8 @@ describe("createChainAi (fallback)", () => {
     const chainFailure = logged.find((entry) => entry.event === "selfhost_ai_provider_failed_in_chain" && entry.provider === "codex");
 
     // (b) both the provider-level and chain-level failure logs carry the new correlation fields.
-    expect(codexFailure).toMatchObject({ jobId: "delivery-123", repoFullName: "JSONbored/gittensory", pullNumber: 42, attempt: 0 });
-    expect(chainFailure).toMatchObject({ jobId: "delivery-123", repoFullName: "JSONbored/gittensory", pullNumber: 42, attempt: 0 });
+    expect(codexFailure).toMatchObject({ jobId: "delivery-123", repoFullName: "JSONbored/loopover", pullNumber: 42, attempt: 0 });
+    expect(chainFailure).toMatchObject({ jobId: "delivery-123", repoFullName: "JSONbored/loopover", pullNumber: 42, attempt: 0 });
 
     // (c) the Codex timeout detail is present but no secret value ever appears in the logged error text.
     expect(codexFailure.error).toContain("codex_timeout");
@@ -1415,7 +1415,7 @@ describe("subscription CLI helpers + fail-safe", () => {
     expect(seen).not.toContain("x");
     expect(capturedInput).toBe("x");
     expect(capturedEnv).toEqual({ PATH: resolveSubscriptionCliPath({ PATH: "/bin" }) });
-    expect(capturedCwd).toContain("gittensory-ai-");
+    expect(capturedCwd).toContain("loopover-ai-");
     expect(timeout).toBe(300_000);
     // Provider-specific model/effort are passed through.
     await createCodexAi({ CODEX_AI_MODEL: "gpt-5.5", CODEX_AI_EFFORT: "high", LOOPOVER_ENABLE_UNSAFE_CODEX_REVIEWER: "1" }, ok, noAuthCheck).run("", { prompt: "x" });
@@ -2003,7 +2003,7 @@ describe("subscription CLI helpers + fail-safe", () => {
 
   it("defaultSpawn rejects when the CLI binary is missing (error handler)", async () => {
     const origPath = process.env.PATH;
-    process.env.PATH = "/nonexistent-gittensory-empty";
+    process.env.PATH = "/nonexistent-loopover-empty";
     try {
       await expect(createCodexAi({ ...process.env, LOOPOVER_ENABLE_UNSAFE_CODEX_REVIEWER: "1" }).run("gpt-5", { prompt: "x" })).rejects.toThrow();
     } finally {
@@ -2016,7 +2016,7 @@ describe("subscription CLI helpers + fail-safe", () => {
     // shell) so this reaches the REAL ENOENT spawn error deterministically, rather than short-circuiting on the
     // credential-isolation guard the way an ambient CODEX_HOME would.
     await expect(
-      createCodexAi({ PATH: "/nonexistent-gittensory-empty", LOOPOVER_ENABLE_UNSAFE_CODEX_REVIEWER: "1" }, undefined, noAuthCheck).run(
+      createCodexAi({ PATH: "/nonexistent-loopover-empty", LOOPOVER_ENABLE_UNSAFE_CODEX_REVIEWER: "1" }, undefined, noAuthCheck).run(
         "gpt-5",
         { prompt: "x" },
       ),
@@ -2025,7 +2025,7 @@ describe("subscription CLI helpers + fail-safe", () => {
     // firstOutputTimer-PRESENT branch for claude too, proving the error handler clears it cleanly (no leaked
     // timer, no unhandled rejection) rather than only ever having been exercised via codex.
     await expect(
-      createClaudeCodeAi({ PATH: "/nonexistent-gittensory-empty", CLAUDE_CODE_OAUTH_TOKEN: "t" }).run("sonnet", { prompt: "x" }),
+      createClaudeCodeAi({ PATH: "/nonexistent-loopover-empty", CLAUDE_CODE_OAUTH_TOKEN: "t" }).run("sonnet", { prompt: "x" }),
     ).rejects.toThrow(/ENOENT/);
   });
 

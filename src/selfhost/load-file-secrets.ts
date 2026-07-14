@@ -3,7 +3,7 @@
 // app on import and is Codecov-ignored, so it has no runtime test coverage of its own.
 import { readFileSync } from "node:fs";
 
-// Docker Compose's OWN reserved `_FILE`-suffixed environment variables -- never gittensory's secret-file
+// Docker Compose's OWN reserved `_FILE`-suffixed environment variables -- never loopover's secret-file
 // convention, so they must never be dereferenced below. `COMPOSE_FILE` is a colon-delimited list of
 // compose file paths (never a single readable file itself, so readFileSync always throws), and
 // `COMPOSE_ENV_FILE` (less commonly set, but equally reserved by Compose) points at an operator's custom

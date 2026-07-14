@@ -1,8 +1,8 @@
-// Self-host AI provider (#979). gittensory calls `env.AI.run(model, { messages, max_tokens, temperature })`
+// Self-host AI provider (#979). loopover calls `env.AI.run(model, { messages, max_tokens, temperature })`
 // and reads `{ response }`. On self-host we provide an Ai-shaped adapter selected by AI_PROVIDER:
 //   • ollama / openai-compatible / openai  — any OpenAI-compatible /chat/completions endpoint (BYO key)
 //   • claude-code / codex                  — a locally-authenticated CLI SUBSCRIPTION, run as a subprocess
-// Absent (no AI_PROVIDER) → env.AI is undefined → gittensory's AI summary degrades to "unavailable" and the
+// Absent (no AI_PROVIDER) → env.AI is undefined → loopover's AI summary degrades to "unavailable" and the
 // review proceeds deterministically. Every path returns `{ response: string }` (or throws → the caller
 // records an error and degrades — never a silent wrong answer).
 
@@ -410,7 +410,7 @@ export function createAnthropicAi(opts: { apiKey: string; model?: string | undef
 //
 // NOTE (#4284): the reusable half of this pattern — a parameterized allowlist builder + secret redaction — now also
 // lives in `@loopover/engine` (`SUBPROCESS_CLI_ENV_ALLOWLIST`, `buildAllowlistedEnv`, `SECRET_PATTERNS`,
-// `redactSecrets`) so the coming gittensory-miner coding-agent drivers can depend on one source of truth. This copy
+// `redactSecrets`) so the coming loopover-miner coding-agent drivers can depend on one source of truth. This copy
 // is deliberately kept parallel for now (the review path's `subscriptionCliEnv` also folds in CLI-specific PATH
 // resolution); keep the two in sync, or shim this onto the engine copy (like `src/rules/predicted-gate.ts` does) in
 // a follow-up if it drifts.
@@ -520,7 +520,7 @@ async function isolatedCliCwd(): Promise<string> {
   const { mkdtemp } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
-  return mkdtemp(join(tmpdir(), "gittensory-ai-"));
+  return mkdtemp(join(tmpdir(), "loopover-ai-"));
 }
 
 /** Write `systemAppend` into `cwd` (the SAME per-call isolated temp dir already used for the subprocess's

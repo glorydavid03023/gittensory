@@ -1,10 +1,10 @@
-// #543 outcome-learning loop: calibrate gittensory's predictions against real merge/close outcomes.
+// #543 outcome-learning loop: calibrate loopover's predictions against real merge/close outcomes.
 //
 // MEASUREMENT only — it never auto-adjusts a score (that would move live rankings; like time-decay it would
 // need owner review). It answers two questions a maintainer/operator can act on:
 //   • Is the deterministic slop score PREDICTIVE? For resolved PRs that carry a persisted slop band, do
 //     higher-slop bands actually merge less often? (`discriminates`).
-//   • Are gittensory's recommendations panning out? The positive vs negative outcome split from the agent
+//   • Are loopover's recommendations panning out? The positive vs negative outcome split from the agent
 //     recommendation-outcome ledger.
 // All inputs already exist: slop_band persists on the PR row (#726) + closed PRs are retained, and the
 // agent_recommendation_outcomes ledger (#543's recommendation half) is populated by evaluateRecommendationOutcomes.

@@ -24,7 +24,7 @@ function isValidDiscordWebhook(url: string): boolean {
 // self-hosters should prefer DISCORD_REPO_WEBHOOKS for per-repo routing, or DISCORD_WEBHOOK_URL for one shared
 // channel across unmapped repos.
 const WEBHOOK_SECRET_BY_REPO: Record<string, string> = {
-  "jsonbored/gittensory": "LOOPOVER_DISCORD_WEBHOOK",
+  "jsonbored/loopover": "LOOPOVER_DISCORD_WEBHOOK",
   "jsonbored/metagraphed": "METAGRAPHED_DISCORD_WEBHOOK",
   "jsonbored/awesome-claude": "AWESOME_DISCORD_WEBHOOK",
 };

@@ -1,5 +1,5 @@
 // Self-host D1 adapter (#980). A FAITHFUL D1Database implementation over a synchronous SQLite driver, so
-// EVERY data-access path in gittensory runs UNCHANGED on a local file:
+// EVERY data-access path in loopover runs UNCHANGED on a local file:
 //   • drizzle-orm/d1 (getDb → the ~171 repository call sites) — calls bind/all/run/raw/batch + reads .results
 //   • the raw `env.DB.prepare(sql).bind(...).all()/.first()/.run()/.batch()` sites
 //   • the test suite, which uses the same D1 surface
@@ -93,7 +93,7 @@ export function createD1Adapter(driver: SqliteDriver): D1Database {
       return { count: (sql.match(/;/g) ?? []).length || 1, duration: 0 };
     },
     async dump() {
-      return new ArrayBuffer(0); // unused by gittensory; present for D1 surface completeness
+      return new ArrayBuffer(0); // unused by loopover; present for D1 surface completeness
     },
   };
   return adapter as unknown as D1Database;

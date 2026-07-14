@@ -97,7 +97,7 @@ const GITHUB_BUDGET_BACKGROUND_TYPES = new Set<string>([
   "rag-index-repo",
   // #4505: found via a systematic audit of every MAINTENANCE_JOB_TYPES member against this set (prompted by
   // reconcile-open-prs below) -- each of these five genuinely makes real GitHub REST calls (directly, or
-  // transitively via resolveRepositorySettings -> loadRepoFocusManifest's cache-miss fetch of .gittensory.json)
+  // transitively via resolveRepositorySettings -> loadRepoFocusManifest's cache-miss fetch of .loopover.json)
   // but was missing from this set, contradicting this module's own header comment.
   //
   // runOpenPrReconciliation makes real, potentially large paginated GitHub REST calls per watched repo (up to

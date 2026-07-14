@@ -195,7 +195,7 @@ function looksNonPublic(origin: string): boolean {
   }
 }
 
-/** Boot-time advisory (JSONbored/gittensory PR #4180's live bug): `PUBLIC_API_ORIGIN`/`PUBLIC_SITE_ORIGIN` get
+/** Boot-time advisory (JSONbored/loopover PR #4180's live bug): `PUBLIC_API_ORIGIN`/`PUBLIC_SITE_ORIGIN` get
  *  embedded VERBATIM as `<img src>` in the public "Visual preview" PR comment table (see
  *  `src/review/visual/capture.ts`) — a value GitHub's own servers, not this instance, must be able to fetch.
  *  `PUBLIC_API_ORIGIN`'s existing preflight check (see `isBareHttpsOrigin` above) only confirms it's a

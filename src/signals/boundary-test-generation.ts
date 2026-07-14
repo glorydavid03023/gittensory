@@ -9,7 +9,7 @@ import { isTestPath, hasLocalTestEvidence } from "./test-evidence";
 // test-code generation is deliberately OUT of scope (server-side generated test code would need a human to
 // verify it is even correct, which risks false confidence) — this only builds a LOCAL-execution action spec
 // (mirrors `local-write-tools.ts`'s pattern) that hands the contributor's OWN agent the criteria to scaffold
-// tests with, so gittensory never writes code and the boundary between review and execution stays intact.
+// tests with, so loopover never writes code and the boundary between review and execution stays intact.
 
 /** A changed source file's path plus its unified-diff patch text (added/removed lines only — no full file
  *  content). Deliberately narrower than `PullRequestFileRecord` so callers (MCP tools, tests) can supply just
@@ -121,15 +121,15 @@ export type BoundaryTestGenerationSpec = {
   /** The boundary touches this spec was generated from — path + pattern kind only, never source text. */
   touches: BoundaryTouch[];
   /** Natural-language hints the contributor's own agent uses to scaffold tests in the repo's own framework and
-   *  conventions — content supplied by gittensory, execution stays on the contributor's machine. */
+   *  conventions — content supplied by loopover, execution stays on the contributor's machine. */
   hints: string[];
   boundary: string;
 };
 
 // Reuses the exact boundary-disclosure string local-write-tools.ts uses for every other local-execution spec,
-// so the no-cloud-write guarantee reads identically across every action gittensory ever proposes.
+// so the no-cloud-write guarantee reads identically across every action loopover ever proposes.
 const BOUNDARY_TEST_GENERATION_BOUNDARY =
-  "This is a suggestion, not a generated test file. Run it locally with your OWN agent/toolchain and the repo's own test framework — gittensory supplies the criteria but never writes or executes test code.";
+  "This is a suggestion, not a generated test file. Run it locally with your OWN agent/toolchain and the repo's own test framework — loopover supplies the criteria but never writes or executes test code.";
 
 const KIND_HINTS: Record<BoundaryPatternKind, string> = {
   array_index_bounds: "Add a case at the first/last valid index and one just past each bound (index -1, index === length).",
@@ -139,7 +139,7 @@ const KIND_HINTS: Record<BoundaryPatternKind, string> = {
 
 /**
  * Build the boundary-safe test-generation action spec: criteria + framework/convention hints for the
- * contributor's OWN agent to scaffold tests from — never test code itself, and never executed by gittensory.
+ * contributor's OWN agent to scaffold tests from — never test code itself, and never executed by loopover.
  * Returns null when there are no boundary touches (nothing to generate hints for).
  */
 export function buildBoundaryTestGenerationSpec(touches: BoundaryTouch[]): BoundaryTestGenerationSpec | null {

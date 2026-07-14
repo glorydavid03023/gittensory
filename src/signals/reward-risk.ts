@@ -1,4 +1,4 @@
-// Reward/risk reasoning signals, extracted to `@loopover/engine` (#2281) so the gittensory-miner
+// Reward/risk reasoning signals, extracted to `@loopover/engine` (#2281) so the loopover-miner
 // can rank candidate work locally with the same logic the maintainer-side gate computes. The implementation
 // lives at `packages/loopover-engine/src/reward-risk.ts`, imported via its RELATIVE SOURCE PATH (matching
 // the merged #2276/#2278/#2282 shims) — not the published `@loopover/engine` specifier, so no

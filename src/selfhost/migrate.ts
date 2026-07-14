@@ -1,4 +1,4 @@
-// Apply gittensory's D1 migrations to the self-host SQLite database at startup. The same `migrations/*.sql`
+// Apply loopover's D1 migrations to the self-host SQLite database at startup. The same `migrations/*.sql`
 // files Cloudflare applies via `wrangler d1 migrations apply` — they're plain SQLite DDL, so they run as-is
 // through the D1 adapter's exec(). Tracked in a `_selfhost_migrations` table so a restart re-applies only the
 // new ones (idempotent), mirroring wrangler's migration ledger.

@@ -6,7 +6,7 @@
 //   GET  /v1/drafts/auth/callback  -> exchange code, encrypt+store the user token, queue submit-draft
 //   queue submit-draft             -> fork the upstream repo with the user's token + open the content PR
 //
-// Single-tenant (gittensory is one worker): the per-project `slug`/`AgentConfig` partitioning from
+// Single-tenant (loopover is one worker): the per-project `slug`/`AgentConfig` partitioning from
 // reviewbot is collapsed into module constants + env vars. The flow is gated by LOOPOVER_REVIEW_DRAFT; when
 // the flag is off the router never mounts these handlers (callers see 404).
 import { decryptDraftToken, encryptDraftToken, newDraftId, randomDraftToken, sha256Hex, timingSafeEqualHex } from "../utils/crypto";
@@ -703,7 +703,7 @@ export async function processSubmitDraft(env: Env, draftId: string): Promise<voi
       targetPath: row.target_path,
       content,
       title,
-      body: "PR-first submission created via gittensory. The submission gate will review category fit, sources, duplicates, safety, and scope.",
+      body: "PR-first submission created via loopover. The submission gate will review category fit, sources, duplicates, safety, and scope.",
     });
     await env.DB.prepare(
       `UPDATE submission_drafts SET status = 'pr_open', github_login = ?, fork_full_name = ?, pull_request_url = ?, pull_request_number = ?, updated_at = ? WHERE id = ?`,

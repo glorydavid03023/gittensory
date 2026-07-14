@@ -1,4 +1,4 @@
-// SQLite → Postgres SQL dialect translation for the self-host Postgres backend (#977). gittensory's core and
+// SQLite → Postgres SQL dialect translation for the self-host Postgres backend (#977). loopover's core and
 // drizzle-orm/d1 emit SQLite-dialect SQL; this translates the bounded set of SQLite-isms the codebase uses
 // (placeholders + a handful of scalar functions + INSERT OR REPLACE/IGNORE + the rowid pseudo-column) so
 // the SAME queries run on Postgres. The timestamp columns are TEXT (ISO strings written by the app), so the

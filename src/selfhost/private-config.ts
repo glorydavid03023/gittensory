@@ -6,10 +6,10 @@
 // import never reaches the Cloudflare bundle.
 //
 // Layout (CodeRabbit-style: per-repo override, layered over a global default, layered over a cross-repo shared
-// base — #1959). For a repo `JSONbored/gittensory` the reader tries, in priority order:
-//   1. `jsonbored__gittensory/.loopover.yml`    — owner-qualified folder (robust to repo-name collisions across owners)
-//   2. `gittensory/.loopover.yml`               — bare repo-name folder (the clean, human-readable layout)
-//   3. `jsonbored__gittensory.yml`              — flat owner__repo file (the original #1390 layout; back-compat)
+// base — #1959). For a repo `JSONbored/loopover` the reader tries, in priority order:
+//   1. `jsonbored__loopover/.loopover.yml`    — owner-qualified folder (robust to repo-name collisions across owners)
+//   2. `loopover/.loopover.yml`               — bare repo-name folder (the clean, human-readable layout)
+//   3. `jsonbored__loopover.yml`              — flat owner__repo file (the original #1390 layout; back-compat)
 //   4. `.loopover.yml`                          — GLOBAL default at the dir root, shared by every repo.
 //   5. `_shared/.loopover.yml`                  — SHARED BASE (#1959), the lowest-priority layer: one house policy
 //      an operator running many repos writes once instead of copy-pasting into every repo's private config.

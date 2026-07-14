@@ -1,6 +1,6 @@
 // Maintainer-recap BUILDER (#2239, foundation for the #1963 recap digest).
 //
-// A PURE data-shaping seam: fold a window of gittensory's own review-outcome data across repos into a single
+// A PURE data-shaping seam: fold a window of loopover's own review-outcome data across repos into a single
 // serializable RecapReport. No delivery, no scheduling, no I/O, no model call — exactly the shape
 // weekly-value-report.ts's buildWeeklyValueReport uses (inputs injected, report returned). The caller supplies
 // each repo's two already-computed aggregators (services/gate-precision.ts buildGatePrecisionReport +

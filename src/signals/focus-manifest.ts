@@ -509,7 +509,7 @@ function applyGateConfigOverrides(effective: RepositorySettings, gate: FocusMani
 /**
  * Resolve the EFFECTIVE repository settings a webhook should act on: `.loopover.yml` > DB settings >
  * safe defaults. The generic `settings:` override applies first; the friendly `gate:` alias then wins
- * for its fields. This single resolver makes the whole gittensory configuration — gate on/off, blocker
+ * for its fields. This single resolver makes the whole loopover configuration — gate on/off, blocker
  * modes, comments, labels, surface, audience — controllable from the repo's `.loopover.yml`.
  */
 export function resolveEffectiveSettings(

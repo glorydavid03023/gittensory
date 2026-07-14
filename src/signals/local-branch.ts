@@ -807,7 +807,7 @@ function buildLocalFindings(
       title: "Source upload disabled",
       detail: "Local MCP branch analysis used structured git metadata only; source contents were not uploaded.",
     },
-    ...(input.repoFullName.toLowerCase() === "jsonbored/gittensory"
+    ...(input.repoFullName.toLowerCase() === "jsonbored/loopover"
       ? [
           {
             code: "loopover_not_registered",

@@ -1,5 +1,5 @@
 // Cloudflare D1 size + row-count observability probe (central-cloud storage, #3810). The Cloudflare D1
-// database backing gittensory's shared cloud gittensory-api/Orb deployment hit its ~10GB account storage
+// database backing loopover's shared cloud loopover-api/Orb deployment hit its ~10GB account storage
 // cap on 2026-07-06 -- see src/db/retention.ts's dedupeSignalSnapshots for the write-side root-cause fix
 // (signal_snapshots was accumulating hundreds of superseded rows per key). D1's own query surface has no way
 // to report the database's FILE size as a metric from inside a query -- that figure only exists via the
@@ -15,7 +15,7 @@
 // CLOUDFLARE_D1_MONITOR_* env vars IS the enablement switch, the same convention as isOrbBrokerMode's
 // ORB_ENROLLMENT_SECRET-presence check (src/orb/broker-client.ts) -- most self-host operators run their own
 // SQLite/Postgres backend and have nothing to monitor here; this exists for whichever deployment owns a real
-// Cloudflare D1 worth watching (including gittensory's own central cloud database). Wired into the self-host
+// Cloudflare D1 worth watching (including loopover's own central cloud database). Wired into the self-host
 // process's OWN boot-time interval registrations in server.ts (mirroring the Orb relay registration retry
 // timer), NOT the Cloudflare Worker `scheduled()` cron: that cron's job registry is shared with the hosted
 // cloud Worker's ephemeral, multi-isolate request lifecycle, which cannot reliably carry an in-memory sample
