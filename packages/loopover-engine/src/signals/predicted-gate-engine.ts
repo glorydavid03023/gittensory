@@ -19,6 +19,10 @@ import type {
   SignalFinding,
 } from "../types/predicted-gate-types.js";
 import { nowIso } from "../utils/json.js";
+// The predicted gate resolves the SAME closing-keyword parser the live gate does (#4882). It used to keep a
+// hand-written copy, which had drifted: no inline-code-span guard, so an unedited PR template — whose checklist
+// line reads "(e.g. `Closes #123`)" — predicted a linked issue where the live gate correctly sees none.
+import { extractLinkedIssueNumbers } from "../github/linked-references.js";
 import { PREFLIGHT_LIMITS } from "./preflight-limits.js";
 import { hasValidationNote, isTestPath } from "./test-evidence.js";
 import { diffFilePriority } from "../review/diff-file-priority.js";
@@ -915,18 +919,6 @@ export function tokenize(value: string): string[] {
     .toLowerCase()
     .split(/[^a-z0-9]+/g)
     .filter((term) => term.length > 2 && !STOPWORDS.has(term));
-}
-
-function extractLinkedIssueNumbers(text: string, repoFullName: string): number[] {
-  const numbers = [...text.matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)\b/gi)].map((match) => Number(match[1]));
-  // GitHub also auto-closes via the fully-qualified `KEYWORD owner/repo#N` form (e.g. Renovate/Dependabot bodies).
-  // Count it only when owner/repo case-insensitively equals THIS repo — a reference to a different repo closes an
-  // issue elsewhere, not here, so it must not spoof a same-repo link. Same `\b`-anchored keywords as above (#1988).
-  const target = repoFullName.toLowerCase();
-  for (const match of text.matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+([\w.-]+\/[\w.-]+)#(\d+)\b/gi)) {
-    if (match[1]!.toLowerCase() === target) numbers.push(Number(match[2]));
-  }
-  return [...new Set(numbers.filter((value) => Number.isInteger(value) && value > 0))];
 }
 
 function isMaintainerAssociation(value: string | null | undefined): boolean {
