@@ -7,6 +7,7 @@
 // processors.ts circularly dependent on each other.
 
 import { createInstallationToken } from "../github/app";
+import { mapWithConcurrency } from "./concurrency";
 import { fetchLivePullRequestState } from "../github/backfill";
 import { githubRateLimitAdmissionKeyForToken } from "../github/client";
 import { isDuplicateClusterWinnerByClaim, resolveDuplicateClusterWinnerNumber } from "../signals/duplicate-winner";
@@ -53,6 +54,15 @@ export function dupWinnerLinkedDuplicateWinnerNumber(
   return winner === null || winner === prNumber ? null : winner;
 }
 
+// A popular linked issue can accumulate dozens of duplicate PRs, and this reconcile fires one live
+// fetchLivePullRequestState per overlapping sibling. An unbounded `Promise.all` over that list bursts every one
+// of those REST calls simultaneously out of a single webhook delivery, against the ONE installation-wide ~5000/hr
+// bucket every managed repo shares. 10 mirrors the two established caps for exactly this "many live per-item
+// GitHub reads from one delivery" shape -- CONTRIBUTOR_CAP_LIVE_CHECK_CONCURRENCY and
+// GLOBAL_OPEN_ITEM_LIVE_CHECK_CONCURRENCY (both `processors.ts`, the file this one was extracted from) -- so the
+// three bounded fan-outs stay consistent rather than each picking their own number (#5835).
+const DUPLICATE_SIBLING_LIVE_CHECK_CONCURRENCY = 10;
+
 /**
  * Live-reconcile the duplicate cluster's open siblings before the winner is elected (#dup-winner / audit #15).
  *
@@ -91,8 +101,10 @@ export async function reconcileLiveDuplicateSiblings(
   const token = installationToken ?? env.GITHUB_PUBLIC_TOKEN;
   const admissionKey = githubRateLimitAdmissionKeyForToken(env, token, installationId);
   const staleClosed = new Set<number>();
-  await Promise.all(
-    overlapping.map(async (sibling) => {
+  await mapWithConcurrency(
+    overlapping,
+    DUPLICATE_SIBLING_LIVE_CHECK_CONCURRENCY,
+    async (sibling) => {
       // #2537: deliberately NOT durable-cached (flagged by the gate's own review) -- despite recomputing every
       // delivery, this reconcile feeds duplicate-winner selection, which can auto-CLOSE the CURRENT PR when
       // duplicateWinnerEnabled. A cached "open" read up to PR_STATE_CACHE_MAX_AGE_MS stale after a missed
@@ -109,7 +121,7 @@ export async function reconcileLiveDuplicateSiblings(
       ).catch(() => undefined);
       if (liveState !== undefined && liveState !== "open")
         staleClosed.add(sibling.number);
-    }),
+    },
   );
   if (staleClosed.size === 0) return otherOpenPullRequests;
   return otherOpenPullRequests.filter(

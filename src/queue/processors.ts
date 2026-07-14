@@ -323,6 +323,7 @@ import { buildAiReviewDiff, buildSecretScanDiff, buildUnifiedReviewDiff, totalAd
 export { buildAiReviewDiff, buildSecretScanDiff } from "../review/review-diff";
 import { estimateReviewEffort } from "../review/review-effort";
 import { buildUnifiedCommentBody } from "../review/unified-comment-bridge";
+import { mapWithConcurrency } from "./concurrency";
 import { isRetryableJobError, RetryableJobError } from "./retryable";
 import {
   claimPrActuationLock,
@@ -4890,21 +4891,11 @@ async function countLiveOpenWithConcurrencyUntil(
 // via mapWithConcurrency in addition to the repository query's total row cap.
 const CONTRIBUTOR_CAP_LIVE_CHECK_CONCURRENCY = 10;
 
-export async function mapWithConcurrency<T, R>(items: T[], concurrency: number, mapper: (item: T) => Promise<R>): Promise<R[]> {
-  const results: R[] = new Array(items.length);
-  let nextIndex = 0;
-  const workerCount = Math.max(1, Math.min(concurrency, items.length || 1));
-  await Promise.all(
-    Array.from({ length: workerCount }, async () => {
-      while (nextIndex < items.length) {
-        const index = nextIndex;
-        nextIndex += 1;
-        results[index] = await mapper(items[index] as T);
-      }
-    }),
-  );
-  return results;
-}
+// Moved to ./concurrency (#5835) so duplicate-detection.ts can bound its own live-sibling fan-out with the same
+// worker pool -- that file deliberately does not import this one (its header records why: it would make the two
+// circularly dependent), so the helper now lives in a neutral module both can depend on. Re-exported here so
+// this file's existing surface is unchanged.
+export { mapWithConcurrency } from "./concurrency";
 
 /**
  * Install-wide contributor open-item count, LIVE-VERIFIED (#2562 gate-review follow-up): every OTHER counted

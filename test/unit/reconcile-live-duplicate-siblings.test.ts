@@ -154,4 +154,35 @@ describe("reconcileLiveDuplicateSiblings (#dup-winner / audit #15)", () => {
     expect(mockedToken).toHaveBeenCalledWith(env, 4242);
     expect(result.map((p) => p.number)).toEqual([]);
   });
+
+  it("REGRESSION: bounds the live per-sibling fan-out instead of bursting one fetch per sibling at once (#5835)", async () => {
+    // A popular linked issue can hold dozens of duplicate PRs. The old `Promise.all(overlapping.map(...))` fired
+    // one live REST call per sibling SIMULTANEOUSLY out of a single webhook delivery, against the ~5000/hr bucket
+    // every managed repo shares through one installation. The fan-out is now capped at 10, matching the two
+    // sibling caps in processors.ts (CONTRIBUTOR_CAP_/GLOBAL_OPEN_ITEM_LIVE_CHECK_CONCURRENCY).
+    const env = createTestEnv();
+    env.LOOPOVER_DUPLICATE_WINNER = "true";
+
+    let inFlight = 0;
+    let peakInFlight = 0;
+    let totalFetches = 0;
+    vi.stubGlobal("fetch", async () => {
+      inFlight += 1;
+      peakInFlight = Math.max(peakInFlight, inFlight);
+      totalFetches += 1;
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      inFlight -= 1;
+      return new Response(JSON.stringify({ state: "open" }), { status: 200 });
+    });
+
+    const siblings = Array.from({ length: 40 }, (_, index) => makePr(index + 1, "open", [1]));
+    const pr = makePr(999, "open", [1]);
+    const result = await reconcileLiveDuplicateSiblings(env, null, "owner/repo", pr, siblings);
+
+    expect(totalFetches).toBe(40); // every sibling is still verified -- the cap bounds concurrency, not coverage
+    expect(peakInFlight).toBeLessThanOrEqual(10);
+    expect(peakInFlight).toBe(10); // and it really does saturate the cap, rather than serialising
+    // All 40 came back live-open, so none is dropped: same result the unbounded version produced.
+    expect(result).toBe(siblings);
+  });
 });
