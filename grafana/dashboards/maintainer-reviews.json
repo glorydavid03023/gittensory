@@ -193,6 +193,58 @@
       "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "right", "showLegend": true, "values": ["value", "percent"] }, "pieType": "donut", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true }, "tooltip": { "mode": "single", "sort": "none" } },
       "targets": [{ "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" }, "refId": "A", "queryType": "table", "queryText": "SELECT verdict, count(*) AS c FROM review_targets WHERE (submitter NOT LIKE '%[bot]%' OR submitter IS NULL) AND verdict IS NOT NULL AND (${repo:sqlstring} = '__ALL__' OR repo = ${repo:sqlstring}) AND unixepoch(updated_at) >= ${__from:date:seconds} AND unixepoch(updated_at) < ${__to:date:seconds} GROUP BY verdict ORDER BY c DESC", "rawQueryText": "SELECT verdict, count(*) AS c FROM review_targets WHERE (submitter NOT LIKE '%[bot]%' OR submitter IS NULL) AND verdict IS NOT NULL AND (${repo:sqlstring} = '__ALL__' OR repo = ${repo:sqlstring}) AND unixepoch(updated_at) >= ${__from:date:seconds} AND unixepoch(updated_at) < ${__to:date:seconds} GROUP BY verdict ORDER BY c DESC" }]
+    },
+    {
+      "type": "row",
+      "id": 15,
+      "title": "Review activity (additive, from audit_events)",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
+      "panels": []
+    },
+    {
+      "type": "stat",
+      "id": 16,
+      "title": "Manual reviews entered",
+      "description": "ADDITIVE lifetime tally: how many times a PR was HELD for manual review in this window, counted from the append-only audit_events log (agent.action.hold) rather than from review_targets' mutable current status. The 'Manual review' stat above is a snapshot -- it silently drops any PR you later merged or closed -- so a PR that entered manual review and was resolved inside the same window is missing there but counted here. This is the number that matches how much manual review actually happened (#3717). Caveat: audit_events records the action the agent took, not the PR's submitter, so bot-authored PRs cannot be filtered out of this count the way they are above.",
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 35 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "orange" }, "unit": "short" }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value" },
+      "targets": [{ "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" }, "refId": "A", "queryType": "table", "queryText": "SELECT count(*) AS n FROM audit_events WHERE event_type = 'agent.action.hold' AND outcome = 'completed' AND (${repo:sqlstring} = '__ALL__' OR target_key LIKE ${repo:sqlstring} || '#%') AND unixepoch(created_at) >= ${__from:date:seconds} AND unixepoch(created_at) < ${__to:date:seconds}", "rawQueryText": "SELECT count(*) AS n FROM audit_events WHERE event_type = 'agent.action.hold' AND outcome = 'completed' AND (${repo:sqlstring} = '__ALL__' OR target_key LIKE ${repo:sqlstring} || '#%') AND unixepoch(created_at) >= ${__from:date:seconds} AND unixepoch(created_at) < ${__to:date:seconds}" }]
+    },
+    {
+      "type": "stat",
+      "id": 17,
+      "title": "Merges executed",
+      "description": "ADDITIVE: merge actions the agent executed in this window (agent.action.merge), from the append-only audit_events log. Each merge is counted once, at the moment it happened (#3717).",
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 35 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "green" }, "unit": "short" }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value" },
+      "targets": [{ "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" }, "refId": "A", "queryType": "table", "queryText": "SELECT count(*) AS n FROM audit_events WHERE event_type = 'agent.action.merge' AND outcome = 'completed' AND (${repo:sqlstring} = '__ALL__' OR target_key LIKE ${repo:sqlstring} || '#%') AND unixepoch(created_at) >= ${__from:date:seconds} AND unixepoch(created_at) < ${__to:date:seconds}", "rawQueryText": "SELECT count(*) AS n FROM audit_events WHERE event_type = 'agent.action.merge' AND outcome = 'completed' AND (${repo:sqlstring} = '__ALL__' OR target_key LIKE ${repo:sqlstring} || '#%') AND unixepoch(created_at) >= ${__from:date:seconds} AND unixepoch(created_at) < ${__to:date:seconds}" }]
+    },
+    {
+      "type": "stat",
+      "id": 18,
+      "title": "Closes executed",
+      "description": "ADDITIVE: close actions the agent executed in this window (agent.action.close), from the append-only audit_events log. Each close is counted once, at the moment it happened (#3717).",
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 35 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "red" }, "unit": "short" }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value" },
+      "targets": [{ "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" }, "refId": "A", "queryType": "table", "queryText": "SELECT count(*) AS n FROM audit_events WHERE event_type = 'agent.action.close' AND outcome = 'completed' AND (${repo:sqlstring} = '__ALL__' OR target_key LIKE ${repo:sqlstring} || '#%') AND unixepoch(created_at) >= ${__from:date:seconds} AND unixepoch(created_at) < ${__to:date:seconds}", "rawQueryText": "SELECT count(*) AS n FROM audit_events WHERE event_type = 'agent.action.close' AND outcome = 'completed' AND (${repo:sqlstring} = '__ALL__' OR target_key LIKE ${repo:sqlstring} || '#%') AND unixepoch(created_at) >= ${__from:date:seconds} AND unixepoch(created_at) < ${__to:date:seconds}" }]
+    },
+    {
+      "type": "timeseries",
+      "id": 19,
+      "title": "Review actions per day (additive)",
+      "description": "ADDITIVE: daily count of each agent action recorded in audit_events -- hold (manual review), merge, close, and review (advisory comment). Because audit_events is append-only, a day's bar never changes retroactively when a PR's status later moves on -- exactly what the mutable review_targets-backed panels above cannot show (#3717).",
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 39 },
+      "fieldConfig": { "defaults": { "custom": { "drawStyle": "bars", "fillOpacity": 60, "stacking": { "mode": "normal", "group": "A" } }, "unit": "short" }, "overrides": [] },
+      "options": { "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }, "tooltip": { "mode": "multi", "sort": "none" } },
+      "targets": [{ "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" }, "refId": "A", "queryType": "time series", "queryText": "SELECT unixepoch(date(created_at)) * 1000 AS time, event_type AS metric, count(*) AS actions FROM audit_events WHERE event_type IN ('agent.action.hold', 'agent.action.merge', 'agent.action.close', 'agent.action.review') AND outcome = 'completed' AND (${repo:sqlstring} = '__ALL__' OR target_key LIKE ${repo:sqlstring} || '#%') AND unixepoch(created_at) >= ${__from:date:seconds} AND unixepoch(created_at) < ${__to:date:seconds} GROUP BY date(created_at), event_type ORDER BY time", "rawQueryText": "SELECT unixepoch(date(created_at)) * 1000 AS time, event_type AS metric, count(*) AS actions FROM audit_events WHERE event_type IN ('agent.action.hold', 'agent.action.merge', 'agent.action.close', 'agent.action.review') AND outcome = 'completed' AND (${repo:sqlstring} = '__ALL__' OR target_key LIKE ${repo:sqlstring} || '#%') AND unixepoch(created_at) >= ${__from:date:seconds} AND unixepoch(created_at) < ${__to:date:seconds} GROUP BY date(created_at), event_type ORDER BY time", "timeColumns": ["time"] }]
     }
   ]
 }
