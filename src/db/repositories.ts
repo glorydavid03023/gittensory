@@ -1,5 +1,9 @@
 import { parsePullRequestTargetKey } from "@loopover/engine";
 import { and, asc, desc, eq, gte, inArray, not, or, sql, type SQL } from "drizzle-orm";
+import {
+  extractLinkedIssueNumbers,
+  extractLinkedPrNumbers,
+} from "../../packages/loopover-engine/src/github/linked-references";
 import { getDb } from "./client";
 import {
   activeReviewTracking,
@@ -7829,51 +7833,14 @@ function loginMatches(column: unknown, login: string) {
   return sql`lower(${column}) = ${login.toLowerCase()}`;
 }
 
-export const MAX_LINKED_ISSUE_NUMBERS = 50;
-
-export type LinkedIssueExtractionResult = {
-  numbers: number[];
-  overflow: boolean;
-};
-
-export function extractLinkedIssueNumbersWithOverflow(text: string, repoFullName: string, limit = MAX_LINKED_ISSUE_NUMBERS): LinkedIssueExtractionResult {
-  const normalizedLimit = Math.max(0, Math.floor(limit));
-  const target = repoFullName.toLowerCase();
-
-  // GitHub's native closing-keyword linker does not treat backtick-wrapped text as a real
-  // "Closes #N" directive, and this repo's own PR template contains "(e.g. `Closes #123`)".
-  // Keep the original text while rejecting regex hits that occur inside inline code spans; replacing
-  // spans with whitespace would let text on either side combine into a fake closing reference.
-  const inlineCodeSpanRanges = [...text.matchAll(/`[^`\n]*`/g)].map((match) => ({
-    start: match.index!,
-    end: match.index! + match[0].length,
-  }));
-
-  const linkedIssues: number[] = [];
-  const seen = new Set<number>();
-  // Matches both GitHub's bare `KEYWORD #N` and fully-qualified `KEYWORD owner/repo#N` closing syntax (#3862) --
-  // the qualified form only counts when owner/repo case-insensitively matches THIS repo; a reference to a
-  // different repo closes an issue there, not here, and must not spoof a same-repo linked-issue match.
-  for (const match of text.matchAll(/\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+(?:([\w.-]+\/[\w.-]+)#|#)(\d+)\b/gi)) {
-    const matchStart = match.index!;
-    const matchEnd = matchStart + match[0].length;
-    if (inlineCodeSpanRanges.some((range) => matchStart < range.end && matchEnd > range.start)) continue;
-    const owner = match[1];
-    if (owner && owner.toLowerCase() !== target) continue;
-    const value = Number(match[2]);
-    if (!Number.isInteger(value) || value <= 0 || seen.has(value)) continue;
-    seen.add(value);
-    if (linkedIssues.length >= normalizedLimit) return { numbers: linkedIssues, overflow: true };
-    linkedIssues.push(value);
-  }
-  return { numbers: linkedIssues, overflow: false };
-}
-
-export function extractLinkedIssueNumbers(text: string, repoFullName: string, limit = MAX_LINKED_ISSUE_NUMBERS): number[] {
-  return extractLinkedIssueNumbersWithOverflow(text, repoFullName, limit).numbers;
-}
-
-function extractLinkedPrNumbers(text: string): number[] {
-  const matches = [...text.matchAll(/\b(?:PR|pull request)\s+#(\d+)\b/gi)];
-  return [...new Set(matches.map((match) => Number(match[1])).filter((value) => Number.isInteger(value) && value > 0))];
-}
+// The closing-keyword / PR-mention parsers moved to `@loopover/engine` (#4882): they are pure regex logic with no
+// D1 or `Env` dependency, and the engine's predicted gate needs the exact same answer the live gate computes here.
+// Re-exported so the host modules that already import them from this file keep working unchanged. Imported via
+// relative source path, not the published package, to match this repo's existing engine-consumption convention
+// (see e.g. src/signals/check-summary.ts).
+export {
+  extractLinkedIssueNumbers,
+  extractLinkedIssueNumbersWithOverflow,
+  type LinkedIssueExtractionResult,
+  MAX_LINKED_ISSUE_NUMBERS,
+} from "../../packages/loopover-engine/src/github/linked-references";
