@@ -343,5 +343,20 @@ export async function processJob(env: Env, message: JobMessage): Promise<void> {
       // an empty table). Never throws.
       await retryFailedRelays(env);
       return;
+    default:
+      // An unrecognized job type (a stale queued message from a renamed/removed type, a producer/consumer skew
+      // during a rolling deploy, or a corrupted payload) would otherwise fall through and be acked with zero
+      // trace. Log it — matching the retired_review_job_ignored (src/index.ts) / dlq_message_dead_lettered
+      // (src/queue/dlq.ts) structured-warn precedents — then return normally so the caller's ack flow is
+      // unchanged. Observability only; never throws (#5836). message narrows to `never` here, so read the
+      // runtime type through a cast.
+      console.warn(
+        JSON.stringify({
+          level: "warn",
+          event: "unknown_job_type_ignored",
+          jobType: (message as { type?: unknown }).type,
+        }),
+      );
+      return;
   }
 }
