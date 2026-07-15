@@ -274,11 +274,14 @@ describe("runOpsAlerts — cron path over gittensory's outcome data", () => {
     expect(found["owner/repo"]?.some((a) => /gate false-positive spike/.test(a))).toBe(true);
     const logged = errors.mock.calls.map((c) => String(c[0])).find((line) => line.includes("ops_anomaly") && line.includes("owner/repo"));
     expect(logged).toBeDefined();
-    const parsed = JSON.parse(logged!) as { level: string; event: string; repo: string; anomalies: string[] };
+    const parsed = JSON.parse(logged!) as { level: string; event: string; ev: string; repo: string; anomalies: string[] };
     expect(parsed.level).toBe("error");
     expect(parsed.event).toBe("ops_anomaly");
     expect(parsed.repo).toBe("owner/repo");
     expect(parsed.anomalies.some((a) => /missing_linked_issue/.test(a))).toBe(true);
+    // REGRESSION (GITTENSORY-1D/1W): `ev` must be the repo, so forwardStructuredLogToSentry's fingerprint
+    // splits by repo instead of collapsing every repo's anomalies into one Sentry issue.
+    expect(parsed.ev).toBe("owner/repo");
   });
 
   it("emits NO ops_anomaly log when the outcome data is healthy", async () => {
@@ -456,7 +459,10 @@ describe("runOpsAlerts — cron path over gittensory's outcome data", () => {
     const found = await runOpsAlerts(env); // resolves (never throws)
 
     expect(found).toEqual({});
-    expect(errors.mock.calls.map((c) => String(c[0])).some((line) => line.includes("ops_anomaly_repo_error") && line.includes("owner/repo"))).toBe(true);
+    const logged = errors.mock.calls.map((c) => String(c[0])).find((line) => line.includes("ops_anomaly_repo_error") && line.includes("owner/repo"));
+    expect(logged).toBeDefined();
+    // REGRESSION (GITTENSORY-1D/1W): same per-repo fingerprint fix as the ops_anomaly log above.
+    expect((JSON.parse(logged!) as { ev: string }).ev).toBe("owner/repo");
   });
 
   it("fails safe at the top level: a repo-scan error is swallowed (ops_anomaly_error), returns {}", async () => {

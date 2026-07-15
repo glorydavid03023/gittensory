@@ -228,7 +228,11 @@ export async function runOpsAlerts(env: Env): Promise<Record<string, string[]>> 
         found[repoFullName] = anomalies;
         // Structured log = loopover's notify path (no Discord/operator webhook exists) AND the Sentry path
         // (level:"error" + an `event` field reaches forwardStructuredLogToSentry). One line per repo.
-        console.error(JSON.stringify({ level: "error", event: "ops_anomaly", repo: repoFullName, at: nowIso(), anomalies }));
+        // `ev: repoFullName` (GITTENSORY-1D/1W): forwardStructuredLogToSentry only fingerprints on the top-level
+        // `event` field unless an `ev` sub-field is present -- without it, every repo's anomalies collapse into
+        // ONE Sentry issue. Confirmed live: one "ops_anomaly" issue mixed a JSONbored/gittensory anomaly with an
+        // unrelated JSONbored/metagraphed review-burst, making both un-triageable from the issue alone.
+        console.error(JSON.stringify({ level: "error", event: "ops_anomaly", ev: repoFullName, repo: repoFullName, at: nowIso(), anomalies }));
         // Experimental PagerDuty paging (#4937): no-op unless LOOPOVER_ENABLE_PAGERDUTY is set AND a routing
         // key resolves for this repo (resolvePagerDutyRoutingKey). ops_anomaly is this codebase's own existing
         // "something needs a human" judgment call -- reusing it here (rather than paging on every
@@ -261,7 +265,8 @@ export async function runOpsAlerts(env: Env): Promise<Record<string, string[]>> 
           incr("loopover_ops_anomaly_total", { repo: repoFullName, kind: "review_failure_burst" });
         }
       } catch (error) {
-        console.error(JSON.stringify({ level: "error", event: "ops_anomaly_repo_error", repo: repoFullName, message: errorMessage(error).slice(0, 200) }));
+        // ev: repoFullName -- same fingerprint-collapse reasoning as the ops_anomaly log above.
+        console.error(JSON.stringify({ level: "error", event: "ops_anomaly_repo_error", ev: repoFullName, repo: repoFullName, message: errorMessage(error).slice(0, 200) }));
       }
     }
   } catch (error) {
