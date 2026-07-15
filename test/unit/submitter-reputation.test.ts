@@ -97,6 +97,12 @@ describe("signalFromCounts — generous, quality-weighted, recency-aware (#reput
   it("any single prompt-injection (over a sufficient sample) → low", () => {
     expect(signalOf(["closed", "source_prompt_injection", 1], ["closed", "dual_review_declined", 4])).toBe("low");
   });
+  it("a single prompt-injection from a LOW-sample account → low (hard override precedes minSample, #5940)", () => {
+    // sample = 1 < minSample (5): the prompt-injection hard override must still fire. A brand-new,
+    // low-history account attempting a single injection is the worst case — previously the small-sample
+    // "neutral" shortcut masked it and returned "neutral".
+    expect(signalOf(["closed", "source_prompt_injection", 1])).toBe("low");
+  });
   it("a serial quality-failure history with very few successes → low", () => {
     // 1 success, 7 genuine declines: failRate 7/8 = 0.875 >= 0.7 AND success < 2 → low.
     expect(signalOf(["merged", "dual_review_approved", 1], ["closed", "dual_review_declined", 7])).toBe("low");

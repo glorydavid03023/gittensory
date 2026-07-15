@@ -211,10 +211,14 @@ export function signalFromCounts(c: ReputationCounts, cfg: ReputationConfig = DE
   const weightedFails = c.qualityFail + c.qualityFailLight * cfg.lightFailWeight;
   // The quality-relevant sample (excludes conflicts/out-of-band/manual — those never reach here).
   const sample = c.success + c.qualityFail + c.qualityFailLight + c.promptInjection;
-  if (sample < cfg.minSample) return "neutral";
 
-  // ── 'low' — genuine malice: ANY prompt-injection (the single hard-abuse signal). ──
+  // ── 'low' — genuine malice: ANY prompt-injection (the single hard-abuse signal). This is an
+  // unconditional hard override, so it precedes the minSample guard below: a brand-new, low-history
+  // account attempting a single prompt injection is precisely the worst case it exists to catch, and
+  // it must not be masked by the small-sample "neutral" shortcut. ──
   if (c.promptInjection > 0) return "low";
+
+  if (sample < cfg.minSample) return "neutral";
   // ── 'low' — serial quality-failure: a high genuine-fail rate AND very few successes. A high-volume
   // contributor with a healthy number of recent merges fails this (success guard) and stays 'neutral'. The
   // soft signals (duplicates/unfetchable) only count at half weight here, so they can't brand alone. ──
