@@ -48,6 +48,16 @@ export async function flushMinerSentry(timeoutMs = 2000) {
   }
 }
 
+/** Capture AND flush before returning -- the crash-path convenience wrapper for
+ * installCliSignalHandlers' `captureError` hook (process-lifecycle.js). A bare `captureMinerError()` only
+ * QUEUES the event in Sentry's transport; `process.exit()` tears the process down immediately afterward
+ * without waiting for any pending HTTP delivery, so the crash-capture path needs this awaited flush or it is
+ * very likely a near-total no-op in practice. */
+export async function captureMinerErrorAndFlush(error, context) {
+  captureMinerError(error, context);
+  await flushMinerSentry();
+}
+
 /** Test-only: reset module state so one test's activation can't leak into the next. */
 export function resetMinerSentryForTesting() {
   Sentry = undefined;

@@ -13,6 +13,7 @@ vi.mock("@sentry/node", () => sentryMock);
 
 import {
   captureMinerError,
+  captureMinerErrorAndFlush,
   flushMinerSentry,
   initMinerSentry,
   resetMinerSentryForTesting,
@@ -147,5 +148,27 @@ describe("loopover-miner opt-in Sentry (#6011)", () => {
     expect(sentryMock.captureException).not.toHaveBeenCalled();
     await flushMinerSentry();
     expect(sentryMock.flush).not.toHaveBeenCalled();
+  });
+
+  describe("captureMinerErrorAndFlush (the crash-path convenience wrapper for installCliSignalHandlers)", () => {
+    it("REGRESSION (#6011 follow-up): captures AND flushes, so a crash-path caller can await it before exiting instead of a bare capture that only queues the event", async () => {
+      await initMinerSentry({ LOOPOVER_MINER_SENTRY_DSN: "https://key@sentry.example/1" });
+      const error = new Error("crash");
+      await captureMinerErrorAndFlush(error, { kind: "uncaughtException" });
+      expect(sentryMock.captureException).toHaveBeenCalledWith(error);
+      expect(sentryMock.flush).toHaveBeenCalledWith(2000);
+    });
+
+    it("resolves cleanly (no throw) when Sentry is off", async () => {
+      await expect(captureMinerErrorAndFlush(new Error("x"))).resolves.toBeUndefined();
+      expect(sentryMock.captureException).not.toHaveBeenCalled();
+      expect(sentryMock.flush).not.toHaveBeenCalled();
+    });
+
+    it("still resolves cleanly when the underlying flush rejects", async () => {
+      await initMinerSentry({ LOOPOVER_MINER_SENTRY_DSN: "https://key@sentry.example/1" });
+      sentryMock.flush.mockRejectedValueOnce(new Error("flush timed out"));
+      await expect(captureMinerErrorAndFlush(new Error("crash"))).resolves.toBeUndefined();
+    });
   });
 });

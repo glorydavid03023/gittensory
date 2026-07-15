@@ -18,7 +18,7 @@ import { runPurge } from "../lib/purge-cli.js";
 import { runQueueCli } from "../lib/portfolio-queue-cli.js";
 import { runOrbExportCli } from "../lib/orb-export.js";
 import { installCliSignalHandlers } from "../lib/process-lifecycle.js";
-import { captureMinerError, initMinerSentry } from "../lib/sentry.js";
+import { captureMinerErrorAndFlush, initMinerSentry } from "../lib/sentry.js";
 import { runStateCli } from "../lib/run-state-cli.js";
 import { runInit } from "../lib/laptop-init.js";
 import { createWizardIo, runInteractiveInit } from "../lib/init-wizard.js";
@@ -47,11 +47,18 @@ try {
 // Opt-in Sentry (#6011): a complete no-op unless the operator sets LOOPOVER_MINER_SENTRY_DSN themselves. Must
 // run AFTER loadMinerFileSecrets (so a `_FILE`-mounted DSN resolves first) and BEFORE installCliSignalHandlers
 // (so a startup crash is still captured).
+/* v8 ignore start -- process entry point (this bin's top level runs unconditionally, every invocation);
+ * exercised by the real --help/--version subprocess spawn in miner-package-skeleton.test.ts (a different
+ * Node process, invisible to this test run's own coverage instrumentation), not unit-coverable here. The
+ * functions themselves (initMinerSentry, installCliSignalHandlers) are fully unit-tested in isolation
+ * (miner-sentry.test.ts, miner-process-lifecycle.test.ts) -- this is only the top-level wiring that calls
+ * them, mirroring src/server.ts's identical, already-established exemption in codecov.yml. */
 await initMinerSentry(process.env);
 
 // Register signal + crash handlers once, before any command runs, so an interrupted run closes its open ledgers
 // cleanly instead of dying mid-write (#4826). Covers every subcommand below, including the local ones.
-installCliSignalHandlers({ captureError: captureMinerError });
+installCliSignalHandlers({ captureError: captureMinerErrorAndFlush });
+/* v8 ignore stop */
 
 // Peel the global logging flags (--quiet/--verbose/--log-level) off the front of argv and configure the
 // process-wide logger once (#4835), so every command below shares one level-aware logger without re-parsing

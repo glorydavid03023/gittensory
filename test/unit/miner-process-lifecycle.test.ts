@@ -144,54 +144,54 @@ describe("loopover-miner process lifecycle / crash-safety (#4826)", () => {
     expect(log).toHaveBeenCalledWith(expect.stringContaining("received SIGTERM"));
   });
 
-  it("logs an uncaught exception's stack and exits non-zero", () => {
+  it("logs an uncaught exception's stack and exits non-zero", async () => {
     const { proc, handlers } = makeFakeProcess();
     const log = vi.fn();
     const exit = vi.fn();
     installCliSignalHandlers({ process: proc, log, exit });
 
     const error = new Error("kaboom");
-    handlers.get("uncaughtException")?.(error);
+    await handlers.get("uncaughtException")?.(error);
 
     expect(log).toHaveBeenCalledWith(expect.stringContaining("uncaught exception"));
     expect(log.mock.calls[0]?.[0] as string).toContain(error.stack);
     expect(exit).toHaveBeenCalledWith(1);
   });
 
-  it("falls back to an error's message when it has no stack", () => {
+  it("falls back to an error's message when it has no stack", async () => {
     const { proc, handlers } = makeFakeProcess();
     const log = vi.fn();
     installCliSignalHandlers({ process: proc, log, exit: vi.fn() });
 
     const error = new Error("stackless");
     Object.defineProperty(error, "stack", { value: undefined });
-    handlers.get("uncaughtException")?.(error);
+    await handlers.get("uncaughtException")?.(error);
 
     expect(log.mock.calls[0]?.[0] as string).toContain("stackless");
   });
 
-  it("stringifies a non-Error unhandled rejection reason and exits non-zero", () => {
+  it("stringifies a non-Error unhandled rejection reason and exits non-zero", async () => {
     const { proc, handlers } = makeFakeProcess();
     const log = vi.fn();
     const exit = vi.fn();
     installCliSignalHandlers({ process: proc, log, exit });
 
-    handlers.get("unhandledRejection")?.("plain string reason");
+    await handlers.get("unhandledRejection")?.("plain string reason");
 
     expect(log).toHaveBeenCalledWith(expect.stringContaining("plain string reason"));
     expect(exit).toHaveBeenCalledWith(1);
   });
 
-  it("REGRESSION (#6011): calls the injected captureError for uncaughtException/unhandledRejection but NOT for a clean SIGINT/SIGTERM exit", () => {
+  it("REGRESSION (#6011): calls the injected captureError for uncaughtException/unhandledRejection but NOT for a clean SIGINT/SIGTERM exit", async () => {
     const { proc, handlers } = makeFakeProcess();
     const captureError = vi.fn();
     installCliSignalHandlers({ process: proc, log: vi.fn(), exit: vi.fn(), captureError });
 
     const error = new Error("kaboom");
-    handlers.get("uncaughtException")?.(error);
+    await handlers.get("uncaughtException")?.(error);
     expect(captureError).toHaveBeenCalledWith(error, { kind: "uncaughtException" });
 
-    handlers.get("unhandledRejection")?.("plain reason");
+    await handlers.get("unhandledRejection")?.("plain reason");
     expect(captureError).toHaveBeenCalledWith("plain reason", { kind: "unhandledRejection" });
 
     captureError.mockClear();
@@ -200,10 +200,30 @@ describe("loopover-miner process lifecycle / crash-safety (#4826)", () => {
     expect(captureError).not.toHaveBeenCalled(); // a clean signal exit is not an error
   });
 
-  it("defaults captureError to a no-op when none is injected, matching every pre-existing caller", () => {
-    const { proc, handlers } = makeFakeProcess();
-    installCliSignalHandlers({ process: proc, log: vi.fn(), exit: vi.fn() });
-    expect(() => handlers.get("uncaughtException")?.(new Error("no capture hook"))).not.toThrow();
+  it("REGRESSION (#6011 follow-up): AWAITS captureError before exiting -- exit() must not fire while a flush is still in flight", async () => {
+    const { proc, handlers, exit } = makeFakeProcess();
+    let resolveCapture: () => void = () => {};
+    const capturePending = new Promise<void>((resolve) => {
+      resolveCapture = resolve;
+    });
+    const captureError = vi.fn(() => capturePending);
+    installCliSignalHandlers({ process: proc, log: vi.fn(), captureError });
+
+    const handled = handlers.get("uncaughtException")?.(new Error("kaboom"));
+    // Still pending: captureError (the flush) has not resolved yet, so exit() must not have fired.
+    await Promise.resolve(); // let the handler's synchronous-until-await portion run
+    expect(exit).not.toHaveBeenCalled();
+
+    resolveCapture();
+    await handled;
+    expect(exit).toHaveBeenCalledWith(1); // only fires once the awaited captureError actually resolved
+  });
+
+  it("defaults captureError to a no-op when none is injected, matching every pre-existing caller", async () => {
+    const { proc, handlers, exit } = makeFakeProcess();
+    installCliSignalHandlers({ process: proc, log: vi.fn(), exit });
+    await expect(handlers.get("uncaughtException")?.(new Error("no capture hook"))).resolves.toBeUndefined();
+    expect(exit).toHaveBeenCalledWith(1);
   });
 
   it("reports a cleanup failure that happens during signal handling via the log", () => {

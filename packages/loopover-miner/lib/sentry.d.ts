@@ -9,5 +9,9 @@ export function captureMinerError(error: unknown, context?: Record<string, unkno
 /** Flush buffered events before the process exits. No-op when off. */
 export function flushMinerSentry(timeoutMs?: number): Promise<void>;
 
+/** Capture AND flush before returning -- the crash-path convenience wrapper for
+ *  installCliSignalHandlers' `captureError` hook. */
+export function captureMinerErrorAndFlush(error: unknown, context?: Record<string, unknown>): Promise<void>;
+
 /** Test-only: reset module state so one test's activation can't leak into the next. */
 export function resetMinerSentryForTesting(): void;

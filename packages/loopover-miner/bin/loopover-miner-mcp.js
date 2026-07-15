@@ -22,7 +22,7 @@ import { toOutcomeRecords, toPredictionRecords } from "../lib/calibration-cli.js
 import { initPredictionLedger } from "../lib/prediction-ledger.js";
 import { loadMinerFileSecrets } from "../lib/env-file-indirection.js";
 import { installCliSignalHandlers } from "../lib/process-lifecycle.js";
-import { captureMinerError, initMinerSentry } from "../lib/sentry.js";
+import { captureMinerErrorAndFlush, initMinerSentry } from "../lib/sentry.js";
 
 // MCP stdio server for @loopover/miner (scaffold #5153). Mirrors the packages/loopover-mcp
 // harness (MCP SDK server + stdio transport). Tools:
@@ -344,6 +344,11 @@ export function createMinerMcpServer(options = {}) {
 // Start the stdio transport only when executed directly as the bin, not when imported by a test.
 // realpathSync on both sides resolves the npm bin symlink so a global/npx install still matches.
 const invokedPath = process.argv[1] ? realpathSync(process.argv[1]) : "";
+/* v8 ignore start -- process entry point: this guard is specifically what makes it unreachable when the
+ * module is imported (every existing MCP tool test does exactly that, per this file's own comment above), so
+ * it can never be true in this test run's own process. createMinerMcpServer() itself is fully exercised by
+ * those tests; this is only the top-level "am I actually invoked as the bin" wiring, mirroring
+ * loopover-miner.js's identical exemption and src/server.ts's in codecov.yml. */
 if (invokedPath && invokedPath === realpathSync(fileURLToPath(import.meta.url))) {
   // Previously this bin had NO crash safety net beyond the startup .catch() below -- an exception thrown while
   // handling an MCP tool call, after the server was already connected, had nowhere to go (#6011). Wire in the
@@ -355,13 +360,16 @@ if (invokedPath && invokedPath === realpathSync(fileURLToPath(import.meta.url)))
     process.exit(1);
   }
   await initMinerSentry(process.env);
-  installCliSignalHandlers({ captureError: captureMinerError });
+  installCliSignalHandlers({ captureError: captureMinerErrorAndFlush });
 
   createMinerMcpServer()
     .connect(new StdioServerTransport())
-    .catch((error) => {
+    .catch(async (error) => {
       console.error(error);
-      captureMinerError(error, { kind: "mcp_startup_connect_failed" });
+      // Awaited so the captured event has a chance to actually reach Sentry before exit() tears the process
+      // down -- a bare synchronous capture only queues it (#6011 follow-up).
+      await captureMinerErrorAndFlush(error, { kind: "mcp_startup_connect_failed" });
       process.exit(1);
     });
 }
+/* v8 ignore stop */

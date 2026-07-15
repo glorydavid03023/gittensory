@@ -58,9 +58,10 @@ export function closeAllCleanupResources(options = {}) {
 
 /**
  * Install top-level signal + error handlers once. On SIGINT/SIGTERM: close all resources and exit with the
- * conventional 128+signal code. On uncaughtException/unhandledRejection: log the error, close all resources, and
- * exit non-zero. No-op (returns false) if already installed unless `options.force` is set. All of `process`, `log`,
- * and `exit` are injectable for testing.
+ * conventional 128+signal code. On uncaughtException/unhandledRejection: log the error, AWAIT the optional
+ * captureError hook (so a captured Sentry event has a chance to actually flush before the process exits),
+ * close all resources, and exit non-zero. No-op (returns false) if already installed unless `options.force` is
+ * set. All of `process`, `log`, `exit`, and `captureError` are injectable for testing.
  */
 export function installCliSignalHandlers(options = {}) {
   const proc = options.process ?? process;
@@ -88,16 +89,23 @@ export function installCliSignalHandlers(options = {}) {
     });
   }
 
-  proc.on("uncaughtException", (error) => {
+  // Awaited (not fire-and-forget): captureError is expected to both capture AND flush before returning (see
+  // captureMinerErrorAndFlush in bin/loopover-miner.js) -- Sentry.captureException only QUEUES an event, and
+  // process.exit() tears the process down immediately without waiting for any pending HTTP delivery, so a
+  // synchronous capture-then-exit would make the crash-capture path a near-total no-op in practice. Node does
+  // not require these handlers to be synchronous: nothing exits the process until this handler itself calls
+  // `exit()`, so awaiting first is safe. captureError's own default is a synchronous no-op, so `await`-ing it
+  // is a harmless no-op for every caller that doesn't pass one.
+  proc.on("uncaughtException", async (error) => {
     log(`loopover-miner: uncaught exception: ${describeError(error)}`);
-    captureError(error, { kind: "uncaughtException" });
+    await captureError(error, { kind: "uncaughtException" });
     runCleanup();
     exit(1);
   });
 
-  proc.on("unhandledRejection", (reason) => {
+  proc.on("unhandledRejection", async (reason) => {
     log(`loopover-miner: unhandled promise rejection: ${describeError(reason)}`);
-    captureError(reason, { kind: "unhandledRejection" });
+    await captureError(reason, { kind: "unhandledRejection" });
     runCleanup();
     exit(1);
   });
