@@ -58,6 +58,59 @@ describe("GitHub PR labels", () => {
     expect(called).toBe(false);
   });
 
+  it("removePullRequestLabel: swallows a 404 when the label is already absent (#6192)", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      const method = init?.method ?? "GET";
+      calls.push(`${method} ${url}`);
+      if (url.includes("/access_tokens")) return Response.json({ token: "installation-token" });
+      if (url.includes("/issues/4/labels/") && method === "DELETE") {
+        return Response.json({ message: "Label does not exist" }, { status: 404 });
+      }
+      return new Response("unexpected", { status: 500 });
+    });
+
+    await expect(
+      removePullRequestLabel(createTestEnv({ GITHUB_APP_PRIVATE_KEY: generateRsaPrivateKeyPem() }), 123, "JSONbored/gittensory", 4, "gittensor"),
+    ).resolves.toBeUndefined();
+    expect(calls.some((call) => call.startsWith("DELETE ") && call.includes("/labels/"))).toBe(true);
+  });
+
+  it("removePullRequestLabel: re-throws non-404 failures (403/5xx) instead of swallowing them (#6192)", async () => {
+    for (const status of [403, 500]) {
+      vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = input.toString();
+        const method = init?.method ?? "GET";
+        if (url.includes("/access_tokens")) return Response.json({ token: "installation-token" });
+        if (url.includes("/issues/4/labels/") && method === "DELETE") {
+          return Response.json({ message: status === 403 ? "Resource not accessible by integration" : "Internal Server Error" }, { status });
+        }
+        return new Response("unexpected", { status: 599 });
+      });
+
+      await expect(
+        removePullRequestLabel(createTestEnv({ GITHUB_APP_PRIVATE_KEY: generateRsaPrivateKeyPem() }), 123, "JSONbored/gittensory", 4, "gittensor"),
+      ).rejects.toMatchObject({ status });
+    }
+  });
+
+  it("removePullRequestLabel: succeeds when DELETE returns 200/204", async () => {
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      const method = init?.method ?? "GET";
+      if (url.includes("/access_tokens")) return Response.json({ token: "installation-token" });
+      if (url.includes("/issues/4/labels/") && method === "DELETE") {
+        return new Response(null, { status: 204 });
+      }
+      return new Response("unexpected", { status: 500 });
+    });
+
+    await expect(
+      removePullRequestLabel(createTestEnv({ GITHUB_APP_PRIVATE_KEY: generateRsaPrivateKeyPem() }), 123, "JSONbored/gittensory", 4, "gittensor"),
+    ).resolves.toBeUndefined();
+  });
+
   it("does nothing when the label is already applied", async () => {
     const calls: string[] = [];
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {

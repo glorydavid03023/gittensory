@@ -69,8 +69,10 @@ export async function ensurePullRequestLabel(
   return { applied: true, created };
 }
 
-/** Remove a single label from a PR if present. Best-effort — a 404 (label not on the PR) is ignored. Used to
- *  keep the mutually-exclusive managed TYPE labels (gittensor:bug/feature/priority) down to exactly one. */
+/** Remove a single label from a PR if present. Best-effort — a 404 (label not on the PR) is ignored; any other
+ *  GitHub API failure (403/5xx/rate-limit) is re-thrown, matching {@link ensurePullRequestLabel}'s narrow-swallow
+ *  convention. Used to keep the mutually-exclusive managed TYPE labels (gittensor:bug/feature/priority) down to
+ *  exactly one. */
 export async function removePullRequestLabel(env: Env, installationId: number, repoFullName: string, pullNumber: number, labelName: string, mode: AgentActionMode = "live"): Promise<void> {
   let owner: string;
   let repo: string;
@@ -81,7 +83,16 @@ export async function removePullRequestLabel(env: Env, installationId: number, r
   }
   const token = await createInstallationToken(env, installationId);
   const octokit = makeInstallationOctokit(env, token, mode, githubRateLimitAdmissionKeyForInstallation(installationId));
-  await octokit
-    .request("DELETE /repos/{owner}/{repo}/issues/{issue_number}/labels/{name}", { owner, repo, issue_number: pullNumber, name: labelName })
-    .catch(() => undefined);
+  try {
+    await octokit.request("DELETE /repos/{owner}/{repo}/issues/{issue_number}/labels/{name}", {
+      owner,
+      repo,
+      issue_number: pullNumber,
+      name: labelName,
+    });
+  } catch (error) {
+    const e = error as { status?: number };
+    // Only swallow the documented "label not on the PR" 404; other failures must propagate (#6192).
+    if (e.status !== 404) throw error;
+  }
 }
