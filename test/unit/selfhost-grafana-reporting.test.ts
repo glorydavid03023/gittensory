@@ -72,7 +72,7 @@ case "$args" in
     echo 'unexpected psql meta-command copy' >&2
     exit 9
     ;;
-  *"information_schema.tables"*"pull_requests"*|*"information_schema.tables"*"advisories"*|*"information_schema.tables"*"review_targets"*|*"information_schema.tables"*"ai_usage_events"*|*"information_schema.tables"*"review_audit"*|*"information_schema.tables"*"issues"*)
+  *"information_schema.tables"*"pull_requests"*|*"information_schema.tables"*"advisories"*|*"information_schema.tables"*"review_targets"*|*"information_schema.tables"*"ai_usage_events"*|*"information_schema.tables"*"audit_events"*|*"information_schema.tables"*"review_audit"*|*"information_schema.tables"*"issues"*)
     printf '1\\n'
     ;;
   *"information_schema.columns"*"ai_usage_events"*"estimated_neurons"*|\
@@ -97,6 +97,10 @@ case "$args" in
   *"FROM ai_usage_events"*)
     printf 'ai_review_pr,codex:gpt-5.5,codex,medium,ok,42,120,15,135,0.25,done,"{""repoFullName"" : ""JSONbored/gittensory"", ""pullNumber"" : 1678}",2026-06-28T00:00:00Z\\n'
     printf 'issue_plan,codex:gpt-5.5,codex,medium,ok,8,50,10,60,0.05,done,"{""repoFullName"" : ""JSONbored/gittensory"", ""pullNumber"" : null}",2026-06-28T00:01:00Z\\n'
+    ;;
+  *"FROM audit_events a"*)
+    printf '"JSONbored/gittensory",1690,JSONbored,agent.action.approve,completed,,2026-06-28T21:38:00Z\\n'
+    printf '"JSONbored/gittensory",1691,tmimmanuel,github_app.pr_visibility_skipped,completed,draft,2026-06-28T21:39:00Z\\n'
     ;;
 esac
 `,
@@ -185,7 +189,7 @@ function failingCopyPsql(root: string): string {
     `#!/bin/sh
 args="$*"
 case "$args" in
-  *"information_schema.tables"*"pull_requests"*|*"information_schema.tables"*"advisories"*|*"information_schema.tables"*"review_targets"*|*"information_schema.tables"*"ai_usage_events"*|*"information_schema.tables"*"review_audit"*)
+  *"information_schema.tables"*"pull_requests"*|*"information_schema.tables"*"advisories"*|*"information_schema.tables"*"review_targets"*|*"information_schema.tables"*"ai_usage_events"*|*"information_schema.tables"*"audit_events"*|*"information_schema.tables"*"review_audit"*)
     printf '1\\n'
     ;;
   *"information_schema.columns"*"ai_usage_events"*"estimated_neurons"*)
@@ -501,6 +505,62 @@ esac
     );
   });
 
+  it("exports public-safe PR audit events for additive maintainer-review dashboard panels", () => {
+    const root = tmpRoot();
+    const appDb = join(root, "app.sqlite");
+    const outDb = join(root, "reporting.sqlite");
+    sqlite(appDb, `
+      CREATE TABLE pull_requests (
+        repo_full_name TEXT NOT NULL,
+        number INTEGER NOT NULL,
+        title TEXT NOT NULL,
+        state TEXT NOT NULL,
+        author_login TEXT,
+        merged_at TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      INSERT INTO pull_requests (repo_full_name, number, title, state, author_login, merged_at, created_at, updated_at)
+      VALUES
+        ('JSONbored/gittensory', 7001, 'human pr', 'open', 'alice', NULL, '2026-06-28T21:00:00Z', '2026-06-28T21:00:00Z'),
+        ('JSONbored/gittensory', 7002, 'bot pr', 'open', 'github-actions[bot]', NULL, '2026-06-28T21:00:00Z', '2026-06-28T21:00:00Z');
+
+      CREATE TABLE audit_events (
+        id TEXT NOT NULL,
+        actor TEXT,
+        target_key TEXT NOT NULL,
+        event_type TEXT NOT NULL,
+        outcome TEXT NOT NULL,
+        detail TEXT,
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO audit_events (id, actor, target_key, event_type, outcome, detail, created_at)
+      VALUES
+        ('1', 'loopover', 'JSONbored/gittensory#7001', 'agent.action.hold', 'completed', NULL, '2026-06-28T21:10:00Z'),
+        ('2', 'loopover', 'JSONbored/gittensory#7001', 'agent.action.approve', 'success', NULL, '2026-06-28T21:11:00Z'),
+        ('3', 'loopover', 'JSONbored/gittensory#7001', 'github_app.pr_visibility_skipped', 'completed', 'draft', '2026-06-28T21:12:00Z'),
+        ('4', 'loopover', 'JSONbored/gittensory#7002', 'agent.action.merge', 'completed', NULL, '2026-06-28T21:13:00Z'),
+        ('5', 'loopover', 'JSONbored/gittensory#7001', 'agent.action.label', 'completed', NULL, '2026-06-28T21:14:00Z');
+    `);
+
+    runExporter(root, appDb, outDb);
+
+    expect(sqlite(outDb, "PRAGMA quick_check;")).toBe("ok");
+    expect(
+      sqlite(
+        outDb,
+        "SELECT repo || '|' || pull_number || '|' || COALESCE(submitter,'') || '|' || event_type || '|' || outcome || '|' || COALESCE(detail,'') FROM audit_events ORDER BY created_at",
+      ),
+    ).toBe(
+      [
+        "JSONbored/gittensory|7001|alice|agent.action.hold|completed|",
+        "JSONbored/gittensory|7001|alice|agent.action.approve|success|",
+        "JSONbored/gittensory|7001|alice|github_app.pr_visibility_skipped|completed|draft",
+        "JSONbored/gittensory|7002|github-actions[bot]|agent.action.merge|completed|",
+      ].join("\n"),
+    );
+  });
+
   it("copies durable AI usage estimate rows into the redacted reporting database", () => {
     const root = tmpRoot();
     const appDb = join(root, "app.sqlite");
@@ -587,6 +647,10 @@ esac
     expect(sqlite(outDb, "SELECT count(*) FROM issues;")).toBe("1");
     expect(sqlite(outDb, "SELECT repo || '|' || number || '|' || author || '|' || state || '|' || title FROM issues;")).toBe(
       "JSONbored/gittensory|42|alice|open|a real issue",
+    );
+    expect(sqlite(outDb, "SELECT count(*) FROM audit_events;")).toBe("2");
+    expect(sqlite(outDb, "SELECT repo || '|' || pull_number || '|' || submitter || '|' || event_type || '|' || outcome || '|' || COALESCE(detail,'') FROM audit_events ORDER BY created_at;")).toBe(
+      "JSONbored/gittensory|1690|JSONbored|agent.action.approve|completed|\nJSONbored/gittensory|1691|tmimmanuel|github_app.pr_visibility_skipped|completed|draft",
     );
     expect(readdirSync(csvTmp)).toEqual([]);
   });
@@ -866,5 +930,6 @@ esac
     expect(second).toContain("reporting export skipped: source unchanged since last export");
     expect(sqlite(outDb, "PRAGMA quick_check;")).toBe("ok");
     expect(sqlite(outDb, "SELECT count(*) FROM review_targets;")).toBe("3");
+    expect(sqlite(outDb, "SELECT count(*) FROM audit_events;")).toBe("2");
   });
 });

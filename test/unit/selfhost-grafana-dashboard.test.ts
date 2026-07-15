@@ -54,6 +54,12 @@ function reviewTargets(dashboard = readDashboard()): DashboardTarget[] {
     .filter((target) => target.queryText?.includes("review_targets"));
 }
 
+function auditEventTargets(dashboard = readDashboard()): DashboardTarget[] {
+  return dashboard.panels
+    .flatMap((panel) => panel.targets ?? [])
+    .filter((target) => target.queryText?.includes("audit_events"));
+}
+
 function targetForPanel(panelId: number): DashboardTarget {
   const panel = readDashboard().panels.find((candidate) => candidate.id === panelId);
   const target = panel?.targets?.[0];
@@ -324,6 +330,38 @@ describe("maintainer Reviews & PRs Grafana dashboard", () => {
     expect(target.queryText).not.toContain("verdict='ignore'");
   });
 
+  it("adds additive audit-event stat panels beside the snapshot-only Manual/Approved/Ignored tiles (#3717 part 2)", () => {
+    const dashboard = readDashboard();
+    const panelsById = new Map(dashboard.panels.map((panel) => [panel.id, panel]));
+
+    for (const [id, title] of [
+      [16, "Held for manual review events"],
+      [17, "Approval events"],
+      [18, "Visibility-skipped events"],
+    ] as const) {
+      const panel = panelsById.get(id);
+      expect(panel?.title).toBe(title);
+      expect(panel?.datasource?.type).toBe("frser-sqlite-datasource");
+      expect(panel?.description?.length ?? 0).toBeGreaterThan(0);
+      expect(panel?.description).toContain("Additive");
+    }
+  });
+
+  it("binds every additive audit_events panel query to the selected repo and time range", () => {
+    const targets = auditEventTargets();
+
+    expect(targets).toHaveLength(3);
+    for (const target of targets) {
+      expect(target.rawQueryText).toBe(target.queryText);
+      expect(target.queryText).toContain("FROM audit_events");
+      expect(target.queryText).toContain("(${repo:sqlstring} = '__ALL__' OR repo = ${repo:sqlstring})");
+      expect(target.queryText).toContain("unixepoch(created_at)");
+      expect(target.queryText).toContain(timeFrom);
+      expect(target.queryText).toContain(timeTo);
+      expect(target.queryText).toContain("submitter NOT LIKE '%[bot]%'");
+    }
+  });
+
   it("adds local, webhook-observed issue-activity stat panels alongside the review_targets PR panels (#3716, switched off the GitHub API 2026-07)", () => {
     const dashboard = readDashboard();
     const panelsById = new Map(dashboard.panels.map((panel) => [panel.id, panel]));
@@ -478,6 +516,37 @@ describe("maintainer Reviews & PRs Grafana dashboard", () => {
     expect(allRepos).toBe("3");
     expect(repoAOnly).toBe("1");
     expect(repoBOnly).toBe("2");
+  });
+
+  (sqliteCliAvailable ? it : it.skip)("counts additive audit-event rows by repo and excludes bot-authored PR events", () => {
+    const root = tmpRoot();
+    const db = join(root, "reporting.sqlite");
+    sqlite(db, `
+      CREATE TABLE audit_events (
+        repo TEXT NOT NULL,
+        pull_number INTEGER NOT NULL,
+        submitter TEXT,
+        event_type TEXT NOT NULL,
+        outcome TEXT NOT NULL,
+        detail TEXT,
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO audit_events (repo, pull_number, submitter, event_type, outcome, detail, created_at)
+      VALUES
+        ('owner/repo-a', 1, 'alice', 'agent.action.hold', 'completed', NULL, '2026-06-29T20:15:00Z'),
+        ('owner/repo-a', 2, 'bob', 'agent.action.approve', 'success', NULL, '2026-06-29T20:20:00Z'),
+        ('owner/repo-a', 3, 'github-actions[bot]', 'agent.action.hold', 'completed', NULL, '2026-06-29T20:25:00Z'),
+        ('owner/repo-b', 4, 'carol', 'github_app.pr_visibility_skipped', 'completed', 'draft', '2026-06-29T20:30:00Z'),
+        ('owner/repo-b', 5, 'dave', 'agent.action.approve', 'queued', NULL, '2026-06-29T20:35:00Z'),
+        ('owner/repo-b', 6, 'erin', 'agent.action.hold', 'completed', NULL, '2026-06-29T19:30:00Z');
+    `);
+
+    expect(sqlite(db, expandGrafanaRange(targetForPanel(16).queryText!))).toBe("1");
+    expect(sqlite(db, expandGrafanaRange(targetForPanel(17).queryText!))).toBe("1");
+    expect(sqlite(db, expandGrafanaRange(targetForPanel(18).queryText!))).toBe("1");
+    expect(sqlite(db, expandGrafanaRange(targetForPanel(16).queryText!, "owner/repo-a"))).toBe("1");
+    expect(sqlite(db, expandGrafanaRange(targetForPanel(18).queryText!, "owner/repo-a"))).toBe("0");
+    expect(sqlite(db, expandGrafanaRange(targetForPanel(18).queryText!, "owner/repo-b"))).toBe("1");
   });
 
 

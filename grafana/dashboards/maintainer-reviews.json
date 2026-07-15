@@ -4,7 +4,7 @@
   "tags": ["loopover", "maintainer"],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 7,
+  "version": 8,
   "editable": false,
   "graphTooltip": 1,
   "refresh": "1m",
@@ -102,10 +102,50 @@
     },
     {
       "type": "row",
+      "id": 15,
+      "title": "Additive review activity",
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 }
+    },
+    {
+      "type": "stat",
+      "id": 16,
+      "title": "Held for manual review events",
+      "description": "Additive count of `agent.action.hold` audit rows in this window -- each hold event is counted when it happened, even if that PR later merged or closed. This is the event-flow counterpart to the current-state 'Manual review' snapshot above, not a replacement for it.",
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 6 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "orange" }, "unit": "short" }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value" },
+      "targets": [{ "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" }, "refId": "A", "queryType": "table", "queryText": "SELECT count(*) AS held_events FROM audit_events WHERE (submitter NOT LIKE '%[bot]%' OR submitter IS NULL) AND event_type='agent.action.hold' AND outcome IN ('success','completed') AND (${repo:sqlstring} = '__ALL__' OR repo = ${repo:sqlstring}) AND unixepoch(created_at) >= ${__from:date:seconds} AND unixepoch(created_at) < ${__to:date:seconds}", "rawQueryText": "SELECT count(*) AS held_events FROM audit_events WHERE (submitter NOT LIKE '%[bot]%' OR submitter IS NULL) AND event_type='agent.action.hold' AND outcome IN ('success','completed') AND (${repo:sqlstring} = '__ALL__' OR repo = ${repo:sqlstring}) AND unixepoch(created_at) >= ${__from:date:seconds} AND unixepoch(created_at) < ${__to:date:seconds}" }]
+    },
+    {
+      "type": "stat",
+      "id": 17,
+      "title": "Approval events",
+      "description": "Additive count of `agent.action.approve` audit rows in this window -- every bot approval event is counted when it was recorded, even if the PR later merged, closed, or received a newer commit. This complements the current-state 'Approved (pending merge)' tile above, which only shows PRs still waiting at the end of their latest in-window state transition.",
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 6 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" }, "unit": "short" }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value" },
+      "targets": [{ "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" }, "refId": "A", "queryType": "table", "queryText": "SELECT count(*) AS approval_events FROM audit_events WHERE (submitter NOT LIKE '%[bot]%' OR submitter IS NULL) AND event_type='agent.action.approve' AND outcome IN ('success','completed') AND (${repo:sqlstring} = '__ALL__' OR repo = ${repo:sqlstring}) AND unixepoch(created_at) >= ${__from:date:seconds} AND unixepoch(created_at) < ${__to:date:seconds}", "rawQueryText": "SELECT count(*) AS approval_events FROM audit_events WHERE (submitter NOT LIKE '%[bot]%' OR submitter IS NULL) AND event_type='agent.action.approve' AND outcome IN ('success','completed') AND (${repo:sqlstring} = '__ALL__' OR repo = ${repo:sqlstring}) AND unixepoch(created_at) >= ${__from:date:seconds} AND unixepoch(created_at) < ${__to:date:seconds}" }]
+    },
+    {
+      "type": "stat",
+      "id": 18,
+      "title": "Visibility-skipped events",
+      "description": "Additive count of `github_app.pr_visibility_skipped` audit rows in this window -- PRs the pipeline explicitly skipped from public review flow, counted at the moment the skip was recorded. This is the real event-ledger measure of 'skipped/ignored by the pipeline', distinct from the snapshot tile above that now means 'no gate decision yet'.",
+      "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 6 },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "purple" }, "unit": "short" }, "overrides": [] },
+      "options": { "colorMode": "background", "graphMode": "none", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "textMode": "value" },
+      "targets": [{ "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" }, "refId": "A", "queryType": "table", "queryText": "SELECT count(*) AS skipped_events FROM audit_events WHERE (submitter NOT LIKE '%[bot]%' OR submitter IS NULL) AND event_type='github_app.pr_visibility_skipped' AND outcome='completed' AND (${repo:sqlstring} = '__ALL__' OR repo = ${repo:sqlstring}) AND unixepoch(created_at) >= ${__from:date:seconds} AND unixepoch(created_at) < ${__to:date:seconds}", "rawQueryText": "SELECT count(*) AS skipped_events FROM audit_events WHERE (submitter NOT LIKE '%[bot]%' OR submitter IS NULL) AND event_type='github_app.pr_visibility_skipped' AND outcome='completed' AND (${repo:sqlstring} = '__ALL__' OR repo = ${repo:sqlstring}) AND unixepoch(created_at) >= ${__from:date:seconds} AND unixepoch(created_at) < ${__to:date:seconds}" }]
+    },
+    {
+      "type": "row",
       "id": 11,
       "title": "Issue activity",
       "collapsed": false,
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 }
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 10 }
     },
     {
       "type": "stat",
@@ -113,7 +153,7 @@
       "title": "Issues opened",
       "description": "Local, webhook-observed count via the loopover-db issues table, same consistency model as the PR panels above (#3716's option 1) -- not a live GitHub-API census, so it inherits the same webhook-completeness caveat the PR data already has. Switched 2026-07 from the grafana-github-datasource live-API path (#3716's option 2), which hardcoded org:JSONbored (broken for any other self-hoster) and silently hit GitHub Search's 1000-result cap with no disclosure on this dashboard.",
       "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" },
-      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 6 },
+      "gridPos": { "h": 4, "w": 8, "x": 0, "y": 11 },
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" } } },
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" }, "refId": "A", "queryType": "table", "queryText": "SELECT count(*) AS opened FROM issues WHERE (${repo:sqlstring} = '__ALL__' OR repo = ${repo:sqlstring}) AND unixepoch(created_at) >= ${__from:date:seconds} AND unixepoch(created_at) < ${__to:date:seconds}", "rawQueryText": "SELECT count(*) AS opened FROM issues WHERE (${repo:sqlstring} = '__ALL__' OR repo = ${repo:sqlstring}) AND unixepoch(created_at) >= ${__from:date:seconds} AND unixepoch(created_at) < ${__to:date:seconds}" }]
@@ -124,7 +164,7 @@
       "title": "Issues closed",
       "description": "Local, webhook-observed count via the loopover-db issues table -- see 'Issues opened' for the 2026-07 switch from the live GitHub-API path. Uses the issue's last-updated timestamp as the closing-transition signal (no separate closed_at column exists), the same approach the PR panels above already use for their own updated_at-based windowing.",
       "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" },
-      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 6 },
+      "gridPos": { "h": 4, "w": 8, "x": 8, "y": 11 },
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "red" } } },
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" }, "refId": "A", "queryType": "table", "queryText": "SELECT count(*) AS closed FROM issues WHERE state='closed' AND (${repo:sqlstring} = '__ALL__' OR repo = ${repo:sqlstring}) AND unixepoch(updated_at) >= ${__from:date:seconds} AND unixepoch(updated_at) < ${__to:date:seconds}", "rawQueryText": "SELECT count(*) AS closed FROM issues WHERE state='closed' AND (${repo:sqlstring} = '__ALL__' OR repo = ${repo:sqlstring}) AND unixepoch(updated_at) >= ${__from:date:seconds} AND unixepoch(updated_at) < ${__to:date:seconds}" }]
@@ -135,7 +175,7 @@
       "title": "Issues open",
       "description": "Current open-issue backlog from the local, webhook-observed issues table -- a state snapshot, not filtered by the dashboard time window, same semantics as the original live-API version of this panel.",
       "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" },
-      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 6 },
+      "gridPos": { "h": 4, "w": 8, "x": 16, "y": 11 },
       "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "orange" } } },
       "options": { "colorMode": "value", "graphMode": "none", "justifyMode": "center", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } },
       "targets": [{ "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" }, "refId": "A", "queryType": "table", "queryText": "SELECT count(*) AS open FROM issues WHERE state='open' AND (${repo:sqlstring} = '__ALL__' OR repo = ${repo:sqlstring})", "rawQueryText": "SELECT count(*) AS open FROM issues WHERE state='open' AND (${repo:sqlstring} = '__ALL__' OR repo = ${repo:sqlstring})" }]
@@ -145,7 +185,7 @@
       "id": 8,
       "title": "Pull requests (latest 1000)",
       "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" },
-      "gridPos": { "h": 16, "w": 24, "x": 0, "y": 10 },
+      "gridPos": { "h": 16, "w": 24, "x": 0, "y": 15 },
       "fieldConfig": {
         "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" }, "filterable": true, "inspect": false } },
         "overrides": [
@@ -179,7 +219,7 @@
       "id": 9,
       "title": "Reviews per day",
       "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 26 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 31 },
       "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "custom": { "drawStyle": "bars", "fillOpacity": 60, "lineWidth": 1, "showPoints": "never", "stacking": { "mode": "none" } }, "unit": "short" }, "overrides": [] },
       "options": { "legend": { "calcs": [], "displayMode": "list", "placement": "bottom", "showLegend": false }, "tooltip": { "mode": "single", "sort": "none" } },
       "targets": [{ "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" }, "refId": "A", "queryType": "time series", "timeColumns": ["time"], "queryText": "SELECT unixepoch(date(updated_at)) * 1000 AS time, count(*) AS reviews FROM review_targets WHERE (submitter NOT LIKE '%[bot]%' OR submitter IS NULL) AND (${repo:sqlstring} = '__ALL__' OR repo = ${repo:sqlstring}) AND unixepoch(updated_at) >= ${__from:date:seconds} AND unixepoch(updated_at) < ${__to:date:seconds} GROUP BY date(updated_at) ORDER BY time", "rawQueryText": "SELECT unixepoch(date(updated_at)) * 1000 AS time, count(*) AS reviews FROM review_targets WHERE (submitter NOT LIKE '%[bot]%' OR submitter IS NULL) AND (${repo:sqlstring} = '__ALL__' OR repo = ${repo:sqlstring}) AND unixepoch(updated_at) >= ${__from:date:seconds} AND unixepoch(updated_at) < ${__to:date:seconds} GROUP BY date(updated_at) ORDER BY time" }]
@@ -189,7 +229,7 @@
       "id": 10,
       "title": "By verdict",
       "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 26 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 31 },
       "fieldConfig": { "defaults": { "color": { "mode": "palette-classic" }, "unit": "short" }, "overrides": [] },
       "options": { "legend": { "displayMode": "list", "placement": "right", "showLegend": true, "values": ["value", "percent"] }, "pieType": "donut", "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true }, "tooltip": { "mode": "single", "sort": "none" } },
       "targets": [{ "datasource": { "type": "frser-sqlite-datasource", "uid": "loopover-db" }, "refId": "A", "queryType": "table", "queryText": "SELECT verdict, count(*) AS c FROM review_targets WHERE (submitter NOT LIKE '%[bot]%' OR submitter IS NULL) AND verdict IS NOT NULL AND (${repo:sqlstring} = '__ALL__' OR repo = ${repo:sqlstring}) AND unixepoch(updated_at) >= ${__from:date:seconds} AND unixepoch(updated_at) < ${__to:date:seconds} GROUP BY verdict ORDER BY c DESC", "rawQueryText": "SELECT verdict, count(*) AS c FROM review_targets WHERE (submitter NOT LIKE '%[bot]%' OR submitter IS NULL) AND verdict IS NOT NULL AND (${repo:sqlstring} = '__ALL__' OR repo = ${repo:sqlstring}) AND unixepoch(updated_at) >= ${__from:date:seconds} AND unixepoch(updated_at) < ${__to:date:seconds} GROUP BY verdict ORDER BY c DESC" }]

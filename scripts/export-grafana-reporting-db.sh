@@ -147,7 +147,8 @@ SQL
 # last export, yet the full rebuild below re-exports and re-imports every row of every table every time. Hash
 # the complete source rows for mutable tables (pull_requests, review_targets) since an in-place UPDATE can
 # leave row count and max(updated_at) unchanged; use a cheap count+max aggregate for insert-only tables
-# (review_audit, ai_usage_events) since nothing ever edits a row in place there, and ai_usage_events grows
+# (review_audit, ai_usage_events, audit_events) since nothing ever edits a row in place there, and
+# ai_usage_events grows
 # without bound so a full dump/hash on every cycle would reproduce the unbounded I/O #3895 was fixing. Skip
 # the rebuild only when that fingerprint matches the last run's AND the last-good $OUT_DB still passes
 # SQLite's quick_check. Fails OPEN: any error or missing piece while computing the fingerprint or validating
@@ -169,7 +170,7 @@ sqlite_table_fingerprint() {
   sqlite3 "$APP_DB" ".dump $tbl" | hash_stdin
 }
 
-# review_audit/ai_usage_events are insert-only event/audit logs (nothing ever UPDATEs a row in
+# review_audit/ai_usage_events/audit_events are insert-only event/audit logs (nothing ever UPDATEs a row in
 # place), so a row count + max(created_at) aggregate can never miss a real change -- and unlike
 # the full-dump hash above, it stays O(1)-ish instead of O(row-count) as ai_usage_events grows
 # without bound. pull_requests/review_targets DO receive in-place UPDATEs (e.g. a title or state
@@ -183,10 +184,10 @@ sqlite_append_only_fingerprint() {
 sqlite_source_fingerprint() {
   [ -s "$APP_DB" ] || return 1
   fp="script=$SCRIPT_VERSION"
-  for tbl in "pull_requests" "review_audit" "review_targets" "ai_usage_events" "issues"; do
+  for tbl in "pull_requests" "review_audit" "review_targets" "ai_usage_events" "audit_events" "issues"; do
     if source_table_exists "$tbl"; then
       case "$tbl" in
-        review_audit | ai_usage_events) val="$(sqlite_append_only_fingerprint "$tbl")" || return 1 ;;
+        review_audit | ai_usage_events | audit_events) val="$(sqlite_append_only_fingerprint "$tbl")" || return 1 ;;
         *) val="$(sqlite_table_fingerprint "$tbl")" || return 1 ;;
       esac
     else
@@ -197,7 +198,7 @@ sqlite_source_fingerprint() {
   printf '%s' "$fp"
 }
 
-# Mirrors sqlite_append_only_fingerprint's reasoning: review_audit/ai_usage_events are insert-only,
+# Mirrors sqlite_append_only_fingerprint's reasoning: review_audit/ai_usage_events/audit_events are insert-only,
 # so count+max is sufficient and avoids scanning+serializing every row on every fast-path check.
 pg_append_only_fingerprint() {
   tbl="$1"
@@ -206,10 +207,10 @@ pg_append_only_fingerprint() {
 
 pg_source_fingerprint() {
   fp="script=$SCRIPT_VERSION"
-  for tbl in "pull_requests" "review_audit" "review_targets" "ai_usage_events" "issues"; do
+  for tbl in "pull_requests" "review_audit" "review_targets" "ai_usage_events" "audit_events" "issues"; do
     if pg_table_exists "$tbl"; then
       case "$tbl" in
-        review_audit | ai_usage_events) val="$(pg_append_only_fingerprint "$tbl")" || return 1 ;;
+        review_audit | ai_usage_events | audit_events) val="$(pg_append_only_fingerprint "$tbl")" || return 1 ;;
         *) val="$(pg_scalar "SELECT md5(COALESCE(string_agg(row_to_json(t)::text, E'\n' ORDER BY row_to_json(t)::text), '')) FROM $tbl t")" || return 1 ;;
       esac
     else
@@ -304,6 +305,19 @@ CREATE TABLE ai_usage_events (
 CREATE INDEX ai_usage_events_feature_created_idx ON ai_usage_events(feature, created_at);
 CREATE INDEX ai_usage_events_model_created_idx ON ai_usage_events(model, created_at);
 CREATE INDEX ai_usage_events_provider_created_idx ON ai_usage_events(provider, created_at);
+
+CREATE TABLE audit_events (
+  repo TEXT NOT NULL,
+  pull_number INTEGER NOT NULL,
+  submitter TEXT,
+  event_type TEXT NOT NULL,
+  outcome TEXT NOT NULL,
+  detail TEXT,
+  created_at TEXT NOT NULL
+);
+CREATE INDEX audit_events_repo_created_idx ON audit_events(repo, created_at);
+CREATE INDEX audit_events_type_created_idx ON audit_events(event_type, created_at);
+CREATE INDEX audit_events_repo_type_created_idx ON audit_events(repo, event_type, created_at);
 SQL
 
 if pg_enabled; then
@@ -318,6 +332,7 @@ if pg_enabled; then
      ! pg_table_exists "advisories" &&
      ! pg_table_exists "review_targets" &&
      ! pg_table_exists "ai_usage_events" &&
+     ! pg_table_exists "audit_events" &&
      ! pg_table_exists "review_audit" &&
      ! pg_table_exists "issues"; then
     if [ -s "$OUT_DB" ]; then
@@ -472,6 +487,34 @@ FROM ai_usage_events
     sqlite_import_csv "$AI_CSV" "ai_usage_events"
   fi
 
+  if pg_table_exists "audit_events"; then
+    AUDIT_EVENTS_CSV="$(csv_temp_file "audit-events")"
+    pg_copy_csv "
+SELECT
+  split_part(a.target_key, '#', 1) AS repo,
+  CAST(split_part(a.target_key, '#', 2) AS INTEGER) AS pull_number,
+  p.author_login AS submitter,
+  a.event_type,
+  a.outcome,
+  a.detail,
+  a.created_at
+FROM audit_events a
+LEFT JOIN pull_requests p
+  ON p.repo_full_name = split_part(a.target_key, '#', 1)
+ AND p.number = CAST(split_part(a.target_key, '#', 2) AS INTEGER)
+WHERE a.event_type IN (
+  'agent.action.approve',
+  'agent.action.close',
+  'agent.action.hold',
+  'agent.action.merge',
+  'github_app.pr_public_surface_published',
+  'github_app.pr_visibility_skipped'
+)
+  AND position('#' in a.target_key) > 0
+" "$AUDIT_EVENTS_CSV"
+    sqlite_import_csv "$AUDIT_EVENTS_CSV" "audit_events"
+  fi
+
   sqlite3 "$TMP_DB" "PRAGMA quick_check;" | grep -qx "ok"
   mv "$TMP_DB" "$OUT_DB"
   rm -f "$TMP_DB-wal" "$TMP_DB-shm"
@@ -498,6 +541,7 @@ if ! source_table_exists "pull_requests" &&
    ! source_table_exists "advisories" &&
    ! source_table_exists "review_targets" &&
    ! source_table_exists "ai_usage_events" &&
+   ! source_table_exists "audit_events" &&
    ! source_table_exists "review_audit" &&
    ! source_table_exists "issues"; then
   if [ -s "$OUT_DB" ]; then
@@ -636,6 +680,75 @@ SELECT
   created_at,
   updated_at
 FROM main.issues;
+DETACH report;
+"
+fi
+
+if source_table_exists "audit_events" && source_table_exists "pull_requests"; then
+  sqlite3 -cmd ".timeout 5000" "$APP_DB" "
+ATTACH '$TMP_DB_SQL' AS report;
+INSERT INTO report.audit_events (
+  repo,
+  pull_number,
+  submitter,
+  event_type,
+  outcome,
+  detail,
+  created_at
+)
+SELECT
+  substr(a.target_key, 1, instr(a.target_key, '#') - 1) AS repo,
+  CAST(substr(a.target_key, instr(a.target_key, '#') + 1) AS INTEGER) AS pull_number,
+  p.author_login AS submitter,
+  a.event_type,
+  a.outcome,
+  a.detail,
+  a.created_at
+FROM main.audit_events a
+LEFT JOIN main.pull_requests p
+  ON p.repo_full_name = substr(a.target_key, 1, instr(a.target_key, '#') - 1)
+ AND p.number = CAST(substr(a.target_key, instr(a.target_key, '#') + 1) AS INTEGER)
+WHERE a.event_type IN (
+  'agent.action.approve',
+  'agent.action.close',
+  'agent.action.hold',
+  'agent.action.merge',
+  'github_app.pr_public_surface_published',
+  'github_app.pr_visibility_skipped'
+)
+  AND instr(a.target_key, '#') > 0;
+DETACH report;
+"
+elif source_table_exists "audit_events"; then
+  sqlite3 -cmd ".timeout 5000" "$APP_DB" "
+ATTACH '$TMP_DB_SQL' AS report;
+INSERT INTO report.audit_events (
+  repo,
+  pull_number,
+  submitter,
+  event_type,
+  outcome,
+  detail,
+  created_at
+)
+SELECT
+  substr(a.target_key, 1, instr(a.target_key, '#') - 1) AS repo,
+  CAST(substr(a.target_key, instr(a.target_key, '#') + 1) AS INTEGER) AS pull_number,
+  NULL AS submitter,
+  a.event_type,
+  a.outcome,
+  a.detail,
+  a.created_at
+FROM main.audit_events a
+WHERE a.event_type IN (
+  'agent.action.approve',
+  'agent.action.close',
+  'agent.action.hold',
+  'agent.action.merge',
+  'github_app.pr_public_surface_published',
+  'github_app.pr_visibility_skipped'
+)
+  AND instr(a.target_key, '#') > 0;
 DETACH report;
 "
 fi
