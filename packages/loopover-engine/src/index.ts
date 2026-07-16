@@ -388,6 +388,20 @@ export {
   type CreateAgentSdkDriverOptions,
 } from "./miner/agent-sdk-driver.js";
 export {
+  CHAT_GROUNDING_MAX_TURNS,
+  CHAT_GROUNDING_SYSTEM_PROMPT,
+  CHAT_GROUNDING_TOOL_ALLOWLIST,
+  MINER_MCP_BIN_RELATIVE_PATH,
+  MINER_MCP_SERVER_NAME,
+  buildGroundingPrompt,
+  redactBlockedText,
+  streamChatGrounding,
+  type ChatGroundingEvent,
+  type ChatGroundingQueryFn,
+  type ChatMessage,
+  type ChatRole,
+} from "./miner/chat-grounding.js";
+export {
   LOCAL_WRITE_BOUNDARY,
   buildApplyLabelsSpec,
   buildClosePrSpec,
