@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { completeGitHubWebOAuth, createSessionFromGitHubToken, pollGitHubDeviceFlow, startGitHubDeviceFlow, startGitHubWebOAuth } from "../../src/auth/github-oauth";
 import { enforceRateLimit, RateLimiter, routeClassForPath } from "../../src/auth/rate-limit";
 import { authenticatePrivateToken, buildBrowserSessionCookie, createSessionForGitHubUser, extractCookieValue, isAuthorizedGitHubSessionLogin, isMcpActuationRepoAllowed, revokeSession, timingSafeEqual } from "../../src/auth/security";
+import { PRODUCT_USER_AGENT } from "../../src/github/client";
 import { createTestEnv } from "../helpers/d1";
 
 describe("private-beta auth and rate limiting", () => {
@@ -675,6 +676,20 @@ describe("private-beta auth and rate limiting", () => {
       }),
     );
     await expect(startGitHubDeviceFlow(env)).resolves.not.toHaveProperty("interval");
+  });
+
+  it("REGRESSION (#6610): sends the canonical PRODUCT_USER_AGENT, not a drifted 'loopover-api' literal", async () => {
+    const env = createTestEnv({ GITHUB_OAUTH_CLIENT_ID: "client-id" });
+    let seenUserAgent: string | undefined;
+    vi.stubGlobal("fetch", async (_input: RequestInfo | URL, init?: RequestInit) => {
+      seenUserAgent = (init?.headers as Record<string, string> | undefined)?.["user-agent"];
+      return Response.json({ device_code: "device-code", user_code: "USER-CODE", verification_uri: "https://github.com/login/device", expires_in: 900 });
+    });
+
+    await startGitHubDeviceFlow(env);
+
+    expect(seenUserAgent).toBe(PRODUCT_USER_AGENT);
+    expect(seenUserAgent).not.toBe("loopover-api");
   });
 
   it("starts and completes GitHub web OAuth with signed state", async () => {

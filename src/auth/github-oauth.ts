@@ -5,7 +5,7 @@ import {
   timingSafeEqual,
 } from "./security";
 import { getDecryptedSessionGitHubTokenBundle, recordAuditEvent, storeSessionGitHubToken } from "../db/repositories";
-import { timeoutFetch } from "../github/client";
+import { PRODUCT_USER_AGENT, timeoutFetch } from "../github/client";
 import type { JsonValue } from "../types";
 
 type GitHubDeviceCodeResponse = {
@@ -47,7 +47,7 @@ export async function startGitHubDeviceFlow(env: Env): Promise<GitHubDeviceCodeR
     headers: {
       accept: "application/json",
       "content-type": "application/json",
-      "user-agent": "loopover-api",
+      "user-agent": PRODUCT_USER_AGENT,
     },
     body: JSON.stringify({
       client_id: env.GITHUB_OAUTH_CLIENT_ID,
@@ -73,7 +73,7 @@ export async function pollGitHubDeviceFlow(env: Env, deviceCode: string) {
     headers: {
       accept: "application/json",
       "content-type": "application/json",
-      "user-agent": "loopover-api",
+      "user-agent": PRODUCT_USER_AGENT,
     },
     body: JSON.stringify({
       client_id: env.GITHUB_OAUTH_CLIENT_ID,
@@ -137,7 +137,7 @@ export async function completeGitHubWebOAuth(
     headers: {
       accept: "application/json",
       "content-type": "application/json",
-      "user-agent": "loopover-api",
+      "user-agent": PRODUCT_USER_AGENT,
     },
     body: JSON.stringify({
       client_id: env.GITHUB_OAUTH_CLIENT_ID,
@@ -195,7 +195,7 @@ export async function createSessionFromGitHubToken(
     headers: {
       accept: "application/vnd.github+json",
       authorization: `Bearer ${githubToken}`,
-      "user-agent": "loopover-api",
+      "user-agent": PRODUCT_USER_AGENT,
       "x-github-api-version": "2022-11-28",
     },
   });
@@ -234,7 +234,7 @@ async function verifyTokenBelongsToApp(env: Env, githubToken: string): Promise<b
       accept: "application/vnd.github+json",
       authorization: `Basic ${btoa(`${env.GITHUB_OAUTH_CLIENT_ID}:${env.GITHUB_OAUTH_CLIENT_SECRET}`)}`,
       "content-type": "application/json",
-      "user-agent": "loopover-api",
+      "user-agent": PRODUCT_USER_AGENT,
       "x-github-api-version": "2022-11-28",
     },
     body: JSON.stringify({ access_token: githubToken }),
@@ -324,7 +324,7 @@ async function refreshGitHubUserToken(
     headers: {
       accept: "application/json",
       "content-type": "application/json",
-      "user-agent": "loopover-api",
+      "user-agent": PRODUCT_USER_AGENT,
     },
     body: JSON.stringify({
       client_id: env.GITHUB_OAUTH_CLIENT_ID,
