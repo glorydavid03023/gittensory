@@ -10,6 +10,7 @@ import {
   serializeAcceptanceCriteria,
   shouldWriteAcceptanceCriteria,
 } from "@loopover/engine";
+import { neutralizePromptInjection } from "./prompt-injection-defense.js";
 import { detectRepoStack, renderStackSummary } from "./stack-detection.js";
 
 // Coding-task-spec builder (#5132, Wave 3.5 follow-up). The second gap discovered alongside #5132's CLI
@@ -31,10 +32,20 @@ import { detectRepoStack, renderStackSummary } from "./stack-detection.js";
 // were issue text + an acceptance-criteria path only. This module now appends that real stack summary (and
 // any confidently-inferred validation commands) to the coding-agent prompt so the agent validates against
 // THIS repository's tooling rather than assuming LoopOver/loopover CI, Codecov, or `npm run test:ci`.
+//
+// Prompt-injection defense (#4795): a target issue's title/body is a customer repo's own content -- on
+// Rent-a-Loop, anyone who can open an issue on that repo can shape text the coding agent later reads as
+// part of its own instructions. `neutralizePromptInjection` runs on both fields before they reach either
+// the coding agent's instructions (buildInstructions) or the acceptance-criteria document's taskBrief
+// (buildTaskBrief) -- the two places raw issue text is embedded into agent-facing prose. This is a
+// DIFFERENT concern from prompt-packet.ts's sanitizePromptPacketField (already applied downstream to
+// taskBrief via buildPromptPacket): that scrubs economic/identity terms and local paths, not
+// manipulation-shaped instructions, so both layers run and neither substitutes for the other.
 
 function buildTaskBrief(issue) {
-  const body = (issue.body ?? "").trim();
-  return body ? `${issue.title}\n\n${body}` : issue.title;
+  const title = neutralizePromptInjection(issue.title).text;
+  const body = neutralizePromptInjection((issue.body ?? "").trim()).text;
+  return body ? `${title}\n\n${body}` : title;
 }
 
 function buildConstraints(issue) {
@@ -178,15 +189,30 @@ function buildValidationGuidance(stack) {
  * rather than repeating its content). Also carries the target repo's detected stack + validation commands
  * (#4786) so the agent does not default to loopover-specific CI assumptions.
  *
+ * The issue's title/body are neutralized against prompt-injection (#4795) before embedding -- this is the
+ * literal `prompt:` handoff to the coding agent (agent-sdk-driver.ts), so it's the primary place untrusted
+ * repo content could otherwise redirect agent behavior.
+ *
  * @param {{ number: number, title: string, body?: string | null }} issue
  * @param {string} acceptanceCriteriaPath
  * @param {import("./stack-detection.js").RepoStackResult} stack
  */
 function buildInstructions(issue, acceptanceCriteriaPath, stack) {
+  const title = neutralizePromptInjection(issue.title);
+  const body = neutralizePromptInjection((issue.body ?? "").trim());
+  if (title.injected || body.injected) {
+    console.log(
+      JSON.stringify({
+        event: "prompt_injection_neutralized",
+        issueNumber: issue.number,
+        fields: [title.injected ? "title" : null, body.injected ? "body" : null].filter(Boolean),
+      }),
+    );
+  }
   return [
-    `Resolve the following GitHub issue in this repository: #${issue.number} -- ${issue.title}`,
+    `Resolve the following GitHub issue in this repository: #${issue.number} -- ${title.text}`,
     "",
-    (issue.body ?? "").trim(),
+    body.text,
     "",
     `A structured acceptance-criteria document describing what "done" means for this attempt is at ${acceptanceCriteriaPath} -- read it and ensure your change satisfies every criterion before finishing.`,
     "",
