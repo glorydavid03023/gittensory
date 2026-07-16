@@ -16,16 +16,33 @@ function RootLayout() {
             <h1 className="text-token-lg font-display font-semibold">Local dashboard</h1>
           </div>
           <nav className="flex gap-4 text-token-sm text-muted-foreground">
-            <Link to="/" className="hover-surface rounded-token-sm px-2 py-1 hover:text-foreground">
+            <Link
+              to="/"
+              activeOptions={{ exact: true }}
+              className="hover-surface rounded-token-sm px-2 py-1 hover:text-foreground"
+              activeProps={{ className: "text-primary font-medium", "aria-current": "page" }}
+            >
               Overview
             </Link>
-            <Link to="/run-history" className="hover-surface rounded-token-sm px-2 py-1 hover:text-foreground">
+            <Link
+              to="/run-history"
+              className="hover-surface rounded-token-sm px-2 py-1 hover:text-foreground"
+              activeProps={{ className: "text-primary font-medium", "aria-current": "page" }}
+            >
               Run history
             </Link>
-            <Link to="/portfolio" className="hover-surface rounded-token-sm px-2 py-1 hover:text-foreground">
+            <Link
+              to="/portfolio"
+              className="hover-surface rounded-token-sm px-2 py-1 hover:text-foreground"
+              activeProps={{ className: "text-primary font-medium", "aria-current": "page" }}
+            >
               Portfolio
             </Link>
-            <Link to="/ledgers" className="hover-surface rounded-token-sm px-2 py-1 hover:text-foreground">
+            <Link
+              to="/ledgers"
+              className="hover-surface rounded-token-sm px-2 py-1 hover:text-foreground"
+              activeProps={{ className: "text-primary font-medium", "aria-current": "page" }}
+            >
               Ledgers
             </Link>
           </nav>
