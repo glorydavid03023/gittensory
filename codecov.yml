@@ -10,6 +10,16 @@
 codecov:
   # Don't post a verdict until the CI run that produced the report has finished.
   require_ci_to_pass: true
+  notify:
+    # The 6 backend test shards (validate-tests matrix, ci.yml) each upload their own lcov.info
+    # directly (flags: shard-N) -- additive by design, but Codecov re-evaluates and re-posts the
+    # status check after EVERY individual upload, not just the last one. Without this, codecov/patch
+    # can report a wildly wrong verdict (as low as ~20% "patch coverage") after only 1-2 of 6 shards
+    # have landed, before self-correcting once the rest arrive -- require_ci_to_pass above only checks
+    # the GH Actions run's own conclusion, it says nothing about upload completeness. Waiting for all
+    # 6 coverage uploads (JUnit test_results uploads are a separate stream and don't count here) before
+    # posting a status removes that premature-fail/premature-pass window entirely.
+    after_n_builds: 6
 
 coverage:
   status:
