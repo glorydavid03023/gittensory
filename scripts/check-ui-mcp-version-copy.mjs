@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { get } from "node:https";
 import { pathToFileURL } from "node:url";
@@ -42,10 +42,21 @@ async function main() {
   );
   const failures = [];
 
+  // --write: self-heal the known-latest fallback instead of failing, so keeping it in sync with npm is a
+  // scheduled bot commit (see .github/workflows/mcp-ui-version-sync.yml), never a manual edit (#6580). CI's
+  // own invocation never passes --write, so a contributor PR still gets a hard failure on real drift.
+  const write = process.argv.includes("--write");
   if (latest && sourceLatest !== latest) {
-    failures.push(
-      `${SOURCE_LATEST_PATH}: known latest ${sourceLatest} does not match npm dist-tags.latest ${latest}`,
-    );
+    if (write) {
+      writeKnownLatestVersion(sourceLatestPath, latest);
+      console.log(
+        `${SOURCE_LATEST_PATH}: updated known latest ${sourceLatest} -> ${latest}`,
+      );
+    } else {
+      failures.push(
+        `${SOURCE_LATEST_PATH}: known latest ${sourceLatest} does not match npm dist-tags.latest ${latest}`,
+      );
+    }
   } else if (!latest) {
     console.warn(
       `::warning::skipped the npm dist-tag drift check (registry unavailable: ${latestSkipReason}); set LOOPOVER_MCP_LATEST_VERSION to enforce it offline`,
@@ -173,6 +184,18 @@ export function readKnownLatestVersion(path) {
   if (!match)
     throw new Error("Could not find MCP_PACKAGE_KNOWN_LATEST_VERSION.");
   return match[1];
+}
+
+export function writeKnownLatestVersion(path, newVersion) {
+  const text = readFileSync(path, "utf8");
+  const pattern = /MCP_PACKAGE_KNOWN_LATEST_VERSION\s*=\s*"([^"]+)"/;
+  if (!pattern.test(text))
+    throw new Error("Could not find MCP_PACKAGE_KNOWN_LATEST_VERSION.");
+  const updated = text.replace(
+    pattern,
+    `MCP_PACKAGE_KNOWN_LATEST_VERSION = "${newVersion}"`,
+  );
+  writeFileSync(path, updated);
 }
 
 export function readMinimumSupportedVersion(path) {

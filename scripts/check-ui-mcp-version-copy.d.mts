@@ -27,6 +27,11 @@ export declare function buildStaleVersionMatchers(
 
 export declare function readKnownLatestVersion(path: string): string;
 
+export declare function writeKnownLatestVersion(
+  path: string,
+  newVersion: string,
+): void;
+
 export declare function readMinimumSupportedVersion(path: string): string;
 
 export declare function fetchLatestVersion(): Promise<string>;

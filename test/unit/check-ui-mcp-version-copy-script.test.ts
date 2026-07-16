@@ -1,13 +1,15 @@
 import { execFileSync } from "node:child_process";
-import { readFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   buildStaleVersionMatchers,
   collectVersionCopyFailures,
   isMinimumSupportedContext,
   readMinimumSupportedVersion,
   SOURCE_LATEST_PATH,
+  writeKnownLatestVersion,
 } from "../../scripts/check-ui-mcp-version-copy.mjs";
 
 const root = process.cwd();
@@ -118,5 +120,87 @@ describe("check-ui-mcp-version-copy script (#6292)", () => {
     expect(out).toContain(
       `minimum floor ${declaredConstant("MCP_MINIMUM_SUPPORTED_VERSION")}`,
     );
+  });
+
+  describe("writeKnownLatestVersion (#6580: self-healing known-latest, never a manual bump)", () => {
+    let tempDir: string | undefined;
+
+    afterEach(() => {
+      if (tempDir) rmSync(tempDir, { recursive: true, force: true });
+      tempDir = undefined;
+    });
+
+    it("replaces only the known-latest constant, leaving the rest of the file untouched", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "mcp-known-latest-"));
+      const filePath = join(tempDir, "mcp-package.ts");
+      writeFileSync(
+        filePath,
+        'export const MCP_PACKAGE_NAME = "@loopover/mcp";\nexport const MCP_PACKAGE_KNOWN_LATEST_VERSION = "0.6.0";\nexport const MCP_MINIMUM_SUPPORTED_VERSION = "0.5.0";\n',
+      );
+
+      writeKnownLatestVersion(filePath, "0.9.0");
+
+      const updated = readFileSync(filePath, "utf8");
+      expect(updated).toContain('MCP_PACKAGE_KNOWN_LATEST_VERSION = "0.9.0"');
+      expect(updated).toContain('MCP_PACKAGE_NAME = "@loopover/mcp"'); // unrelated lines preserved
+      expect(updated).toContain('MCP_MINIMUM_SUPPORTED_VERSION = "0.5.0"'); // the floor is untouched
+    });
+
+    it("throws when the target file has no known-latest constant to update", () => {
+      tempDir = mkdtempSync(join(tmpdir(), "mcp-known-latest-"));
+      const filePath = join(tempDir, "mcp-package.ts");
+      writeFileSync(filePath, "export const SOMETHING_ELSE = 1;\n");
+
+      expect(() => writeKnownLatestVersion(filePath, "0.9.0")).toThrow(
+        /Could not find MCP_PACKAGE_KNOWN_LATEST_VERSION/,
+      );
+    });
+  });
+
+  describe("--write CLI mode (#6580)", () => {
+    let tempDir: string | undefined;
+
+    afterEach(() => {
+      if (tempDir) rmSync(tempDir, { recursive: true, force: true });
+      tempDir = undefined;
+    });
+
+    // Runs the real CLI end-to-end, but against a disposable temp repo layout -- never the real
+    // apps/loopover-ui/src/lib/mcp-package.ts, so the test can never mutate this repo's own source file.
+    function seedTempRepo(knownLatest: string): string {
+      const dir = mkdtempSync(join(tmpdir(), "mcp-write-cli-"));
+      mkdirSync(join(dir, "apps/loopover-ui/src/lib"), { recursive: true });
+      mkdirSync(join(dir, "packages/loopover-mcp"), { recursive: true });
+      writeFileSync(join(dir, "README.md"), "# repo\n");
+      writeFileSync(join(dir, "packages/loopover-mcp/README.md"), "# mcp\n");
+      writeFileSync(
+        join(dir, "apps/loopover-ui/src/lib/mcp-package.ts"),
+        `export const MCP_PACKAGE_KNOWN_LATEST_VERSION = "${knownLatest}";\nexport const MCP_MINIMUM_SUPPORTED_VERSION = "0.5.0";\n`,
+      );
+      return dir;
+    }
+
+    it("self-heals a stale known-latest constant instead of failing", () => {
+      tempDir = seedTempRepo("0.6.0");
+      const out = execFileSync(
+        process.execPath,
+        [join(process.cwd(), SCRIPT_PATH), "--write"],
+        { encoding: "utf8", cwd: tempDir, env: { ...process.env, LOOPOVER_MCP_LATEST_VERSION: "0.9.0" } },
+      );
+      expect(out).toContain("updated known latest 0.6.0 -> 0.9.0");
+      const updated = readFileSync(join(tempDir, "apps/loopover-ui/src/lib/mcp-package.ts"), "utf8");
+      expect(updated).toContain('MCP_PACKAGE_KNOWN_LATEST_VERSION = "0.9.0"');
+    });
+
+    it("is a no-op when the known-latest constant is already current", () => {
+      tempDir = seedTempRepo("0.9.0");
+      const out = execFileSync(
+        process.execPath,
+        [join(process.cwd(), SCRIPT_PATH), "--write"],
+        { encoding: "utf8", cwd: tempDir, env: { ...process.env, LOOPOVER_MCP_LATEST_VERSION: "0.9.0" } },
+      );
+      expect(out).not.toContain("updated known latest");
+      expect(out).toContain("MCP UI version copy ok");
+    });
   });
 });
