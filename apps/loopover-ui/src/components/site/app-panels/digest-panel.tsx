@@ -51,6 +51,7 @@ export function DigestPanel() {
       isLoading={digest.status === "loading"}
       isError={digest.status === "error"}
       errorKind={digest.status === "error" ? digest.errorKind : undefined}
+      errorLabel="Maintainer digest"
       isEmpty={digest.status === "ready" && digest.data.items.length === 0}
       onRetry={digest.reload}
       onRefresh={digest.reload}

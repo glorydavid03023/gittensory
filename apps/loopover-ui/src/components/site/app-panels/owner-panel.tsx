@@ -108,6 +108,7 @@ export function OwnerPanel() {
         }
         isError={Boolean(repoPath) && readiness.status === "error" && config.status === "error"}
         errorKind={readiness.status === "error" ? readiness.errorKind : undefined}
+        errorLabel="Repo owner workspace"
         isEmpty={Boolean(repoPath) && readiness.status === "ready" && !workspace}
         onRetry={refresh}
         onRefresh={refresh}

@@ -76,6 +76,7 @@ export function CommandsPanel() {
       isLoading={commands.status === "loading"}
       isError={commands.status === "error"}
       errorKind={commands.status === "error" ? commands.errorKind : undefined}
+      errorLabel="Command simulator"
       isEmpty={commands.status === "ready" && commands.data.commands.length === 0}
       onRetry={commands.reload}
       onRefresh={commands.reload}
