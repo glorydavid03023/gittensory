@@ -62,11 +62,6 @@ export const AMS_ENV_REFERENCE_ROWS: MinerEnvReferenceRow[] = [
     defaultValue: null,
   },
   {
-    name: "LOOPOVER_MINER_KILL_SWITCH",
-    firstReference: "lib/config-precedence.js",
-    defaultValue: "",
-  },
-  {
     name: "LOOPOVER_MINER_LOG_LEVEL",
     firstReference: "lib/logger.js",
     defaultValue: "",
@@ -176,7 +171,6 @@ export const AMS_ENV_REFERENCE_MARKDOWN = [
   "| `LOOPOVER_MINER_EVENT_LEDGER_DB` | `lib/event-ledger.js` | (none) |",
   '| `LOOPOVER_MINER_GOVERNOR_LEDGER_DB` | `lib/governor-ledger.js` | `""` |',
   "| `LOOPOVER_MINER_GOVERNOR_STATE_DB` | `lib/governor-state.js` | (none) |",
-  '| `LOOPOVER_MINER_KILL_SWITCH` | `lib/config-precedence.js` | `""` |',
   '| `LOOPOVER_MINER_LOG_LEVEL` | `lib/logger.js` | `""` |',
   '| `LOOPOVER_MINER_NO_UPDATE_CHECK` | `lib/update-check.js` | `""` |',
   '| `LOOPOVER_MINER_ORB_EXPORT_DB` | `lib/orb-export.js` | `""` |',
