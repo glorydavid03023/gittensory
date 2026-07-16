@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { generateKeyPairSync } from "node:crypto";
-import { closeIssue, closePullRequest, createIssueComment, createPullRequestReview, createPullRequestReviewComments, dismissLatestBotApproval, getLastCloserLogin, getLastReopenerLogin, mergePullRequest, reopenPullRequest, updatePullRequestBranch } from "../../src/github/pr-actions";
+import { closeIssue, closePullRequest, createIssueComment, createPullRequestReview, createPullRequestReviewComments, dismissLatestBotApproval, getLastCloserLogin, getLastReopenerLogin, listPullRequestCommitMessages, mergePullRequest, reopenPullRequest, updatePullRequestBranch } from "../../src/github/pr-actions";
 import { clearInstallationTokenCacheForTest } from "../../src/github/app";
 import { createTestEnv } from "../helpers/d1";
 
@@ -232,6 +232,45 @@ describe("GitHub PR action primitives (#778)", () => {
     });
     const result = await createIssueComment(envWithKey(), 123, "owner/repo", 7, "hello");
     expect(result).toEqual({ id: 9, html_url: "https://github.com/owner/repo/pull/7#issuecomment-9" });
+  });
+
+  it("#slop-commit-messages: fetches the PR's commit subject lines, oldest-first, from the pulls/commits endpoint", async () => {
+    const calls: string[] = [];
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url.includes("/access_tokens")) return Response.json({ token: "t" });
+      calls.push(url);
+      return Response.json([
+        { sha: "c1", commit: { message: "wip" } },
+        { sha: "c2", commit: { message: "feat(api): add cursor pagination" } },
+      ]);
+    });
+    const result = await listPullRequestCommitMessages(envWithKey(), 123, "owner/repo", 7);
+    expect(result).toEqual(["wip", "feat(api): add cursor pagination"]);
+    expect(calls[0]).toMatch(/\/repos\/owner\/repo\/pulls\/7\/commits/);
+  });
+
+  it("#slop-commit-messages: drops commit entries with no message rather than inserting an empty string", async () => {
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url.includes("/access_tokens")) return Response.json({ token: "t" });
+      return Response.json([{ sha: "c1", commit: { message: "" } }, { sha: "c2", commit: null }, { sha: "c3" }, { sha: "c4", commit: { message: "fix: real subject" } }]);
+    });
+    const result = await listPullRequestCommitMessages(envWithKey(), 123, "owner/repo", 7);
+    expect(result).toEqual(["fix: real subject"]);
+  });
+
+  it("#slop-commit-messages: fails safe to an empty array on a GitHub error, never throws (so the slop gate degrades to pre-fix behavior, not a hard failure)", async () => {
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
+      const url = input.toString();
+      if (url.includes("/access_tokens")) return Response.json({ token: "t" });
+      return new Response("server error", { status: 500 });
+    });
+    await expect(listPullRequestCommitMessages(envWithKey(), 123, "owner/repo", 7)).resolves.toEqual([]);
+  });
+
+  it("#slop-commit-messages: fails safe to an empty array on an invalid repo name, never throws", async () => {
+    await expect(listPullRequestCommitMessages(createTestEnv(), 1, "invalid", 4)).resolves.toEqual([]);
   });
 
   it("walks paginated issue events to find the true most recent closer", async () => {

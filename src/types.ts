@@ -1296,8 +1296,10 @@ export type RepositorySettings = {
  *  `"advisory"` (#4535) is a NEW, actually-wired value, not a resurrection of either removed one: the gate
  *  still computes the violation and its reason, but `src/queue/processors.ts` only ever folds the result into
  *  the close-triggering `screenshotTableMatch` when `action === "close"` -- so `"advisory"` is a real no-op on
- *  merge/close by construction, with visibility left to the AI reviewer's own commentary (its context is
- *  expected to mention the same completeness requirement -- see the review-context sync in the #4540 PR). */
+ *  merge/close by construction. Visibility comes from `maybeAddScreenshotTableAdvisoryFinding` (queue/processors.ts),
+ *  which appends a non-blocking `screenshot_table_missing` finding to the PR's advisory panel whenever
+ *  `action === "advisory"` and the gate would have violated -- a deterministic signal, not just left to chance
+ *  in the AI reviewer's own commentary. */
 export type ScreenshotTableGateAction = "close" | "advisory";
 
 /** Per-repo config for the before/after screenshot-table gate (#2006). See {@link RepositorySettings.screenshotTableGate}

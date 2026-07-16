@@ -591,7 +591,7 @@ import {
 } from "../review/visual/preview-url";
 import { resolveHardGuardrailGlobs } from "../review/guardrail-config";
 import { guardrailPathMatches, isGuardrailHit } from "../signals/change-guardrail";
-import { createIssueComment } from "../github/pr-actions";
+import { createIssueComment, listPullRequestCommitMessages } from "../github/pr-actions";
 import {
   anyLinkedIssueHardRuleOn,
   loadLinkedIssueHardRules,
@@ -601,7 +601,7 @@ import {
 } from "../review/linked-issue-hard-rules";
 import { DEFAULT_UNLINKED_ISSUE_GUARDRAIL } from "../review/unlinked-issue-guardrail-config";
 import { resolveUnlinkedIssueMatchDisposition } from "../review/unlinked-issue-guardrail";
-import { DEFAULT_SCREENSHOT_TABLE_GATE, evaluateScreenshotTableGate, extractTableRowImageUrls } from "../review/screenshot-table-gate";
+import { DEFAULT_SCREENSHOT_CONTRACT_MESSAGE, DEFAULT_SCREENSHOT_TABLE_GATE, evaluateScreenshotTableGate, extractTableRowImageUrls, type ScreenshotTableGateConfig } from "../review/screenshot-table-gate";
 import { isSafeHttpUrl } from "../review/content-lane/safe-url";
 import {
   buildScreenshotTableVisionFindings,
@@ -2748,8 +2748,11 @@ async function runAgentMaintenancePlanAndExecute(
   // (markPullRequestVisualCaptureSatisfied, written earlier in this same webhook by maybePublishPrPublicSurface
   // -- see that function's beforeAfter block -- and re-read here on `pr`, which this caller already re-fetched
   // fresh from the DB). Off by default (settings.screenshotTableGate.enabled === false), so the pure evaluator
-  // below is effectively free for the common case. "close" is the only enforcement action this gate has (#4110
-  // removed the dead request_changes/comment surface) -- the check below is the ONLY place that reads `.action`.
+  // below is effectively free for the common case. "close" is the only ENFORCEMENT action this gate has (#4110
+  // removed the dead request_changes/comment surface) -- the ternary below is the only place that folds a
+  // violation into an actual close. "advisory" mode gets its own separate, non-blocking visibility via
+  // maybeAddScreenshotTableAdvisoryFinding (this file), which re-evaluates the SAME pure check later in the
+  // main gate pass and appends a finding instead of a close.
   /* v8 ignore next -- defensive: resolveRepositorySettings always populates screenshotTableGate (getRepositorySettings's DB defaults), so this fallback is unreachable in practice. */
   const screenshotTableGateConfig = settings.screenshotTableGate ?? DEFAULT_SCREENSHOT_TABLE_GATE;
   const botCaptureSatisfied = Boolean(pr.headSha) && pr.visualCaptureSatisfiedSha === pr.headSha;
@@ -6832,6 +6835,65 @@ export async function maybeAddLockfileTamperFinding(
 }
 
 /**
+ * Screenshot-table gate advisory visibility (#2006 follow-up). `action: "close"` already communicates via its
+ * own templated close comment (see planAgentMaintenanceActions/screenshotTableCloseMessage), so a violation
+ * there never needs a SEPARATE advisory finding -- this only ever fires for `action: "advisory"`, which
+ * previously had NO visible effect at all: the live gate's only other `evaluateScreenshotTableGate` call site
+ * (`runAgentMaintenancePlanAndExecute`) discards the result entirely once `action !== "close"`. Mirrors
+ * `maybeAddLockfileTamperFinding` immediately above: off/out-of-scope is free, a violation appends ONE
+ * warning-severity, non-blocking finding (unrecognized by `isConfiguredGateBlocker`, so it can never gate),
+ * and any evaluation error is swallowed so it can never destabilize the gate.
+ */
+export async function maybeAddScreenshotTableAdvisoryFinding(
+  env: Env,
+  args: {
+    advisory: Awaited<ReturnType<typeof buildPullRequestAdvisory>>;
+    repoFullName: string;
+    pullNumber: number;
+    screenshotTableGateConfig: ScreenshotTableGateConfig;
+    prBody: string | null | undefined;
+    prLabels: string[];
+    botCaptureSatisfied: boolean;
+    files: Awaited<ReturnType<typeof listPullRequestFiles>> | null;
+  },
+): Promise<void> {
+  if (!args.screenshotTableGateConfig.enabled || args.screenshotTableGateConfig.action !== "advisory") return;
+  try {
+    const files =
+      args.files ??
+      (await listPullRequestFiles(env, args.repoFullName, args.pullNumber));
+    const result = evaluateScreenshotTableGate({
+      config: args.screenshotTableGateConfig,
+      prBody: args.prBody,
+      prLabels: args.prLabels,
+      changedFiles: files.map((file) => file.path),
+      botCaptureSatisfied: args.botCaptureSatisfied,
+    });
+    if (!result.violated) return;
+    const detail = result.reason ?? DEFAULT_SCREENSHOT_CONTRACT_MESSAGE;
+    args.advisory.findings.push({
+      code: "screenshot_table_missing",
+      severity: "warning",
+      title: "Missing before/after screenshot table",
+      detail,
+      action: "Add a before/after screenshot table to the pull request description (advisory only — this does not block merge).",
+      publicText: detail,
+    });
+  } catch (error) {
+    /* v8 ignore next -- fail-safe: an evaluation error never destabilizes the gate. */
+    console.error(
+      JSON.stringify({
+        level: "error",
+        event: "screenshot_table_advisory_scan_failed",
+        repository: args.repoFullName,
+        pullNumber: args.pullNumber,
+        error: errorMessage(error),
+      }),
+    );
+  }
+}
+
+/**
  * Run the linked-issue satisfaction assessment for advisory purposes (#1961/#3906) — opt-in via
  * `linkedIssueSatisfactionGateMode != "off"`. Assesses only the PR's PRIMARY (first) linked issue: v1 chooses
  * cost/complexity over completeness for the multi-linked-issue case (each additional issue would need its own
@@ -8481,6 +8543,16 @@ async function maybePublishPrPublicSurface(
     }
     if (shouldCollectSlopEvidence(settings)) {
       const slopFiles = gateFiles ?? [];
+      // #slop-commit-messages: the low_quality_commit_message signal (weight 15) needs the PR's own commit
+      // subject(s), which nothing on this path previously fetched -- buildLowQualityCommitMessageFinding
+      // guards on commitMessages being undefined/empty and so silently never fired on the live gate.
+      // Best-effort: listPullRequestCommitMessages fails safe to [] (same as never having fetched it).
+      const slopCommitMessages = await listPullRequestCommitMessages(
+        env,
+        installationId,
+        repoFullName,
+        pr.number,
+      );
       const slop = buildSlopAssessment({
         changedFiles: slopFiles.map((file) => ({
           path: file.path,
@@ -8488,6 +8560,7 @@ async function maybePublishPrPublicSurface(
           deletions: file.deletions,
         })),
         description: pr.body,
+        commitMessages: slopCommitMessages,
         // Reuse the collision report already built for this gate run so a duplicate-cluster PR is flagged (#563).
         // Duplicate-winner adjudication (#dup-winner): the winner is judged on its OWN merits, so it is NOT
         // penalized for the cluster. Flag-OFF ⇒ isDupWinner is false ⇒ byte-identical to today.
@@ -9377,6 +9450,20 @@ async function maybePublishPrPublicSurface(
       repoFullName,
       pullNumber: pr.number,
       lockfileIntegrityGateMode: settings.lockfileIntegrityGateMode,
+      files: await getReviewFiles(),
+    });
+
+    // Screenshot-table gate advisory visibility (#2006 follow-up): `action: "advisory"` previously had no
+    // visible effect at all (see maybeAddScreenshotTableAdvisoryFinding's own doc comment). No-op for `off`,
+    // out-of-scope, or `action: "close"` (which already communicates via its own close comment).
+    await maybeAddScreenshotTableAdvisoryFinding(env, {
+      advisory,
+      repoFullName,
+      pullNumber: pr.number,
+      screenshotTableGateConfig: settings.screenshotTableGate ?? DEFAULT_SCREENSHOT_TABLE_GATE,
+      prBody: pr.body,
+      prLabels: pr.labels,
+      botCaptureSatisfied: Boolean(pr.headSha) && pr.visualCaptureSatisfiedSha === pr.headSha,
       files: await getReviewFiles(),
     });
 
@@ -12495,12 +12582,17 @@ const COMMAND_RATE_LIMIT_REDELIVERY_WINDOW_MS = 10 * 60_000;
 
 /**
  * Per-command @loopover rate limit (#2560, anti-abuse): generalizes review-nag's audit-ledger counting
- * pattern (`countRecentAuditEventsForActorAndTarget`) to EVERY `@loopover` Q&A command, not just
- * review-request pings. Keyed by `(actor, command, targetKey)` — the command name is folded into targetKey so
- * repeatedly invoking ONE command never counts against a DIFFERENT command's own limit. Independent of, and
- * complementary to, `maybeThrottleReviewNagPing` above: that one stays scoped to the thread's OWN author and
- * can close a PR; this covers ANY authorized actor invoking ANY command and only ever holds (declines with a
- * notice), never closes. Off (`commandRateLimitPolicy: "off"`, the default) is a complete no-op.
+ * pattern to EVERY `@loopover` Q&A command, not just review-request pings. The full `targetKey` (still
+ * `repo#issueNumber#command`, used for the redelivery guard and the audit-trail record below) stays
+ * per-thread, but the BUDGET COUNT itself is repo-wide via `countRecentAuditEventsForActorInRepoWithTargetSuffix`
+ * (#rate-limit-cross-thread-carryover, the same cross-PR-carryover fix #4021 already applied to review-nag's
+ * own cooldown) — pinned to THIS command's own suffix so one command's budget never bleeds into another's, but
+ * no longer resettable by simply invoking the command on a fresh issue/PR (a bare per-target count would reset
+ * to 0 the moment `issueNumber` changes, letting an actor who exhausts the limit on thread A get a full new
+ * budget on thread B). Independent of, and complementary to, `maybeThrottleReviewNagPing` above: that one stays
+ * scoped to the thread's OWN author and can close a PR; this covers ANY authorized actor invoking ANY command
+ * and only ever holds (declines with a notice), never closes. Off (`commandRateLimitPolicy: "off"`, the
+ * default) is a complete no-op.
  */
 async function maybeThrottleLoopOverCommand(
   env: Env,
@@ -12554,7 +12646,16 @@ async function maybeThrottleLoopOverCommand(
   /* v8 ignore next -- resolveRepositorySettings always resolves a concrete positive integer; the undefined side is defensive against the field's optional TS type. */
   const windowHours = args.settings.commandRateLimitWindowHours ?? 24;
   const sinceIso = new Date(Date.now() - windowHours * 60 * 60 * 1000).toISOString();
-  const priorInvocations = await countRecentAuditEventsForActorAndTarget(env, args.commenter, COMMAND_RATE_LIMIT_EVENT_TYPE, targetKey, sinceIso);
+  // Repo-wide, not per-target (#rate-limit-cross-thread-carryover), but still pinned to THIS command's own
+  // suffix so independently-budgeted commands never bleed into each other's count.
+  const priorInvocations = await countRecentAuditEventsForActorInRepoWithTargetSuffix(
+    env,
+    args.commenter,
+    COMMAND_RATE_LIMIT_EVENT_TYPE,
+    args.repoFullName,
+    args.command,
+    sinceIso,
+  );
   const invocationCount = priorInvocations + 1; // this invocation counts too
 
   // Always record the invocation first so the running count reflects reality even when the rest of this
@@ -12600,6 +12701,9 @@ async function maybeThrottleLoopOverCommand(
 }
 
 const INTENT_ROUTING_RATE_LIMIT_EVENT_TYPE = "github_app.intent_routing_invocation";
+// Shared between the full targetKey (redelivery guard / audit-trail record) and the repo-wide count's suffix
+// filter below, so a naming drift between the two can never silently under/over-count (#rate-limit-cross-thread-carryover).
+const INTENT_ROUTING_TARGET_SUFFIX = "intent-routing";
 
 /**
  * Dedicated rate limit for the intent-classification router (#4596): every unrecognized-verb mention with
@@ -12626,7 +12730,7 @@ async function maybeThrottleIntentRouting(
   const policy = args.settings.commandRateLimitPolicy ?? "off";
   if (policy === "off") return true;
 
-  const targetKey = `${args.repoFullName}#${args.issueNumber}#intent-routing`;
+  const targetKey = `${args.repoFullName}#${args.issueNumber}#${INTENT_ROUTING_TARGET_SUFFIX}`;
   const redeliverySinceIso = new Date(Date.now() - COMMAND_RATE_LIMIT_REDELIVERY_WINDOW_MS).toISOString();
   const alreadySeen = await hasAuditEventForDelivery(env, args.commenter, INTENT_ROUTING_RATE_LIMIT_EVENT_TYPE, targetKey, args.deliveryId, redeliverySinceIso);
   // A redelivered webhook must not re-classify (and re-spend shared neuron budget) for one real mention.
@@ -12637,7 +12741,16 @@ async function maybeThrottleIntentRouting(
   /* v8 ignore next -- resolveRepositorySettings always resolves a concrete positive integer; the undefined side is defensive against the field's optional TS type. */
   const windowHours = args.settings.commandRateLimitWindowHours ?? 24;
   const sinceIso = new Date(Date.now() - windowHours * 60 * 60 * 1000).toISOString();
-  const priorInvocations = await countRecentAuditEventsForActorAndTarget(env, args.commenter, INTENT_ROUTING_RATE_LIMIT_EVENT_TYPE, targetKey, sinceIso);
+  // Repo-wide, not per-target (#rate-limit-cross-thread-carryover) -- same fix as maybeThrottleLoopOverCommand
+  // above, mirroring review-nag's #4021 cross-PR-carryover pattern.
+  const priorInvocations = await countRecentAuditEventsForActorInRepoWithTargetSuffix(
+    env,
+    args.commenter,
+    INTENT_ROUTING_RATE_LIMIT_EVENT_TYPE,
+    args.repoFullName,
+    INTENT_ROUTING_TARGET_SUFFIX,
+    sinceIso,
+  );
   const invocationCount = priorInvocations + 1;
 
   await recordAuditEvent(env, {

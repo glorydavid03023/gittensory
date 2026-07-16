@@ -1234,6 +1234,27 @@ describe("queue processors", () => {
       expect(applied?.n).toBe(0);
     });
 
+    it("REGRESSION: the budget is repo-wide, not per-thread — opening a fresh issue/PR does not reset a command's rate-limit counter", async () => {
+      // Before the fix, the count query was scoped to the EXACT targetKey (repo#issueNumber#command), so an
+      // actor who exhausted the limit on one thread could get a full new budget simply by invoking the SAME
+      // command on a DIFFERENT issue/PR number — the exact bypass class #4021 already fixed for review-nag.
+      const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
+      await upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory", commandRateLimitPolicy: "hold", commandRateLimitMaxPerWindow: 1, commandRateLimitWindowHours: 24 });
+      await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 340, title: "Rate limit target A", state: "open", user: { login: "oktofeesh1" }, author_association: "NONE", labels: [], body: "" });
+      await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 341, title: "Rate limit target B (fresh)", state: "open", user: { login: "oktofeesh1" }, author_association: "NONE", labels: [], body: "" });
+      // Already at the "help" limit (1) on issue #340.
+      await repositoriesModule.recordAuditEvent(env, { eventType: "github_app.command_invocation", actor: "maintainer", targetKey: "JSONbored/gittensory#340#help", outcome: "completed" });
+      const seen = { comments: [] as string[] };
+      stubCommandRateLimitFetch(341, seen);
+      // The SAME command ("help"), by the SAME actor, on a BRAND-NEW issue #341 — must still be held.
+      await processJob(env, { type: "github-webhook", deliveryId: "rl-cross-thread-carryover", eventName: "issue_comment", payload: mentionPayload(341, "@loopover help") });
+      expect(seen.comments).toHaveLength(1);
+      expect(seen.comments[0]).toContain("rate limit");
+      const applied = await env.DB.prepare("select outcome, detail from audit_events where event_type = 'github_app.command_rate_limit_applied'").first<{ outcome: string; detail: string }>();
+      expect(applied?.outcome).toBe("completed");
+      expect(applied?.detail).toContain("hold applied");
+    });
+
     it("dry-run mode: holds the command but never posts a live cooldown comment", async () => {
       const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
       await upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory", commandRateLimitPolicy: "hold", commandRateLimitMaxPerWindow: 1, commandRateLimitWindowHours: 24, agentDryRun: true });
@@ -1809,6 +1830,45 @@ describe("queue processors", () => {
       });
       await processJob(env, { type: "github-webhook", deliveryId: "intent-routing-over-ceiling", eventName: "issue_comment", payload: mentionPayload(313, "@loopover why is this stuck?") });
       expect(advisoryRun).not.toHaveBeenCalled(); // throttled -- the classifier never ran
+      expect(seen.comments).toHaveLength(1); // fails open: the plain did-you-mean fallback still posts
+      expect(seen.comments[0]).not.toContain("Interpreted");
+      expect(seen.comments[0]).not.toContain("LoopOver readiness blockers");
+    });
+
+    it("REGRESSION: the intent-routing budget is repo-wide, not per-thread — opening a fresh issue/PR does not reset the classifier ceiling", async () => {
+      // Same cross-thread-carryover bug as maybeThrottleLoopOverCommand above, applied to the intent-routing
+      // classifier's own independent counter.
+      const advisoryRun = vi.fn(async () => ({ response: '{"command": "blockers"}' }));
+      const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem(), AI_ADVISORY: { run: advisoryRun } as unknown as Ai });
+      await upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory", commandRateLimitPolicy: "hold", commandRateLimitAiMaxPerWindow: 1, commandRateLimitWindowHours: 24 });
+      await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 342, title: "Rate limit target A", state: "open", user: { login: "oktofeesh1" }, author_association: "NONE", labels: [], body: "" });
+      await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 343, title: "Rate limit target B (fresh)", state: "open", user: { login: "oktofeesh1" }, author_association: "NONE", labels: [], body: "" });
+      // Already at the ceiling (1) on issue #342.
+      await repositoriesModule.recordAuditEvent(env, {
+        eventType: "github_app.intent_routing_invocation",
+        actor: "maintainer",
+        targetKey: "JSONbored/gittensory#342#intent-routing",
+        outcome: "completed",
+      });
+      const seen = { comments: [] as string[] };
+      vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = input.toString();
+        const method = init?.method ?? "GET";
+        if (url.includes("raw.githubusercontent.com") && url.includes(".loopover.yml")) {
+          return new Response("settings:\n  advisoryAiRouting:\n    intentRouting: true\n", { status: 200 });
+        }
+        if (url.includes("/access_tokens")) return Response.json({ token: "fake-installation-token" });
+        if (url.includes("/collaborators/") && url.includes("/permission")) return Response.json({ permission: "maintain" });
+        if (url.includes("/issues/343/comments") && method === "GET") return Response.json([]);
+        if (url.includes("/issues/343/comments") && method === "POST") {
+          seen.comments.push(String(JSON.parse(String(init?.body ?? "{}")).body ?? ""));
+          return Response.json({ id: seen.comments.length }, { status: 201 });
+        }
+        return new Response("not found", { status: 404 });
+      });
+      // A BRAND-NEW issue #343 (same actor, same repo) must still be held -- the classifier never runs.
+      await processJob(env, { type: "github-webhook", deliveryId: "intent-routing-cross-thread-carryover", eventName: "issue_comment", payload: mentionPayload(343, "@loopover why is this stuck?") });
+      expect(advisoryRun).not.toHaveBeenCalled();
       expect(seen.comments).toHaveLength(1); // fails open: the plain did-you-mean fallback still posts
       expect(seen.comments[0]).not.toContain("Interpreted");
       expect(seen.comments[0]).not.toContain("LoopOver readiness blockers");
@@ -2562,6 +2622,94 @@ describe("queue processors", () => {
     expect(cleared?.slopRisk).toBeNull();
     expect(cleared?.slopBand).toBeNull();
     expect(refreshedFiles).toHaveLength(1);
+  });
+
+  it("REGRESSION (#slop-commit-messages): the live slop gate fetches the PR's own commit messages, so low_quality_commit_message can actually fire", async () => {
+    // Before the fix, buildSlopAssessment was called with no `commitMessages` at all on this path -- the
+    // detector guards on `commitMessages === undefined` and so unconditionally returned null in production,
+    // no matter how generic the PR's real commit subject was. Two PRs with distinct titles/bodies (so the
+    // collision report's own title/term-overlap check never clusters them as duplicates of each other) each
+    // pairing a source file with a substantive test file (so missingTestEvidence never fires either) --
+    // differing ONLY in their (stubbed) GitHub commit history, isolating the commit-message signal from every
+    // other slop detector. Asserted via the persisted `pull_requests` slopRisk/slopBand columns
+    // (updatePullRequestSlopAssessment runs unconditionally inside shouldCollectSlopEvidence, independent of
+    // the publish/comment pipeline), mirroring how "clears the persisted dashboard slop score when the slop
+    // gate is off (#911)" above verifies the same live score.
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
+    await persistRegistrySnapshot(
+      env,
+      normalizeRegistryPayload({ "JSONbored/gittensory": { emission_share: 0.01, issue_discovery_share: 0 } }, { kind: "raw-github", url: "https://example.test" }, "2026-05-23T00:00:00.000Z"),
+    );
+    await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
+    await upsertRepositorySettings(env, {
+      repoFullName: "JSONbored/gittensory",
+      commentMode: "off",
+      publicSurface: "off",
+      autoLabelEnabled: false,
+      checkRunMode: "off",
+      reviewCheckMode: "required",
+      linkedIssueGateMode: "off",
+      slopGateMode: "advisory",
+    });
+    await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 96, title: "Add clamp helper for the volume slider", state: "open", user: { login: "contributor" }, author_association: "CONTRIBUTOR", head: { sha: "genericsha96" }, labels: [], body: "Bounds the volume slider's raw input to a safe numeric range." });
+    await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 97, title: "Restrict pagination cursor offsets to a valid window", state: "open", user: { login: "contributor" }, author_association: "CONTRIBUTOR", head: { sha: "specificsha97" }, labels: [], body: "Prevents the pagination cursor from resolving to an out-of-range offset." });
+
+    const changedFiles = [
+      { filename: "src/clamp.ts", status: "added", additions: 8, deletions: 0, changes: 8 },
+      { filename: "src/clamp.test.ts", status: "added", additions: 5, deletions: 0, changes: 5 },
+    ];
+    let checkRunSeq = 960;
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      if (url === "https://api.gittensor.io/miners") return Response.json([]);
+      if (url.includes("/access_tokens")) return Response.json({ token: "installation-token" });
+      if (url.includes("/pulls/96/files")) return Response.json(changedFiles);
+      if (url.includes("/pulls/97/files")) return Response.json(changedFiles);
+      // PR #96's ONLY commit has a generic, empty-of-detail subject -- must trip low_quality_commit_message.
+      if (url.includes("/pulls/96/commits")) return Response.json([{ sha: "c1", commit: { message: "wip" } }]);
+      // PR #97's commit is a real, specific Conventional Commit -- must NOT trip the same finding.
+      if (url.includes("/pulls/97/commits")) return Response.json([{ sha: "c2", commit: { message: "feat(clamp): add clamp(value, min, max) helper" } }]);
+      if (url.includes("/commits/genericsha96/check-runs")) return Response.json({ total_count: 0, check_runs: [] });
+      if (url.includes("/commits/specificsha97/check-runs")) return Response.json({ total_count: 0, check_runs: [] });
+      if (url.endsWith("/pulls/96")) return Response.json({ number: 96, state: "open", user: { login: "contributor" }, head: { sha: "genericsha96" }, mergeable_state: "clean" });
+      if (url.endsWith("/pulls/97")) return Response.json({ number: 97, state: "open", user: { login: "contributor" }, head: { sha: "specificsha97" }, mergeable_state: "clean" });
+      if (url.includes("/check-runs") && init?.method === "POST") { checkRunSeq += 1; return Response.json({ id: checkRunSeq }, { status: 201 }); }
+      if (url.includes("/check-runs")) return Response.json({ id: checkRunSeq });
+      return new Response("not found", { status: 404 });
+    });
+
+    await processJob(env, {
+      type: "github-webhook",
+      deliveryId: "slop-commit-messages-generic",
+      eventName: "pull_request",
+      payload: {
+        action: "opened",
+        installation: { id: 123, account: { login: "JSONbored", id: 1, type: "User" } },
+        repository: { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } },
+        pull_request: { number: 96, title: "Add clamp helper for the volume slider", state: "open", user: { login: "contributor" }, author_association: "CONTRIBUTOR", head: { sha: "genericsha96" }, labels: [], body: "Bounds the volume slider's raw input to a safe numeric range." },
+      },
+    });
+    await processJob(env, {
+      type: "github-webhook",
+      deliveryId: "slop-commit-messages-specific",
+      eventName: "pull_request",
+      payload: {
+        action: "opened",
+        installation: { id: 123, account: { login: "JSONbored", id: 1, type: "User" } },
+        repository: { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } },
+        pull_request: { number: 97, title: "Restrict pagination cursor offsets to a valid window", state: "open", user: { login: "contributor" }, author_association: "CONTRIBUTOR", head: { sha: "specificsha97" }, labels: [], body: "Prevents the pagination cursor from resolving to an out-of-range offset." },
+      },
+    });
+
+    const generic = await getPullRequest(env, "JSONbored/gittensory", 96);
+    const specific = await getPullRequest(env, "JSONbored/gittensory", 97);
+    // "wip" alone trips ONLY low_quality_commit_message (weight 15) -- clean of every other detector by
+    // construction (a real test file, a non-empty description, no duplicate cluster).
+    expect(generic?.slopRisk).toBe(15);
+    expect(generic?.slopBand).toBe("low");
+    // The specific Conventional Commit trips nothing at all.
+    expect(specific?.slopRisk).toBe(0);
+    expect(specific?.slopBand).toBe("clean");
   });
 
   it("#dup-winner: flag ON spares the lowest open sibling — no duplicate block, slop not penalized for the cluster", async () => {

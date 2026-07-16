@@ -1401,6 +1401,71 @@ describe("queue processors", () => {
     expect(seen.comments.some((c) => c.includes("before/after screenshot table"))).toBe(true);
   });
 
+  it("REGRESSION (#2006 advisory follow-up): action: \"advisory\" is no longer a silent no-op -- a missing before/after table appends a visible, non-blocking finding instead of closing the PR", async () => {
+    // Before the fix, evaluateScreenshotTableGate's `violated` result was only ever folded into a real signal
+    // when `action === "close"` -- the "advisory" ternary branch discarded it entirely, so a maintainer who
+    // deliberately chose the softer "advisory" action got neither enforcement NOR visibility. No `autonomy`
+    // is configured here (unlike the "close" test above) -- advisory mode's finding comes from the main gate
+    // pass, not the agent-maintenance close path, so it must appear even with the agent fully unconfigured.
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
+    await upsertInstallation(env, {
+      installation: { id: 123, account: { login: "JSONbored", id: 1, type: "User" }, target_type: "User", repository_selection: "all", permissions: { metadata: "read", pull_requests: "write", issues: "write" }, events: ["pull_request"] },
+      repositories: [{ name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }],
+    });
+    await upsertRepositorySettings(env, {
+      repoFullName: "JSONbored/gittensory",
+      commentMode: "all_prs",
+      publicSurface: "comment_only",
+      checkRunMode: "off",
+      reviewCheckMode: "required",
+    });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { screenshotTableGate: { enabled: true, whenLabels: ["visual"], action: "advisory" } } }, "repo_file");
+    const seen = { closed: false, comments: [] as string[] };
+    vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = input.toString();
+      const method = init?.method ?? "GET";
+      if (url === "https://api.gittensor.io/miners") return Response.json([]);
+      if (url.includes("/access_tokens")) return Response.json({ token: "installation-token" });
+      if (url.includes("/pulls/58/files")) return Response.json([{ filename: "apps/ui/src/App.tsx", status: "modified", additions: 1, deletions: 0, changes: 1, patch: "@@\n+const ok = true;" }]);
+      if (url.includes("/pulls/58/reviews")) return Response.json([]);
+      if (url.includes("/pulls/58/commits")) return Response.json([]);
+      if (url.endsWith("/pulls/58") && method === "PATCH") { seen.closed = JSON.parse(String(init?.body ?? "{}")).state === "closed"; return Response.json({ number: 58, state: "closed" }); }
+      if (url.endsWith("/pulls/58")) return Response.json({ number: 58, state: "open", user: { login: "visual-contributor" }, head: { sha: "vis58" }, mergeable_state: "clean" });
+      if (url.includes("/commits/vis58/check-runs")) return Response.json({ total_count: 0, check_runs: [] });
+      if (url.includes("/commits/vis58/status")) return Response.json({ state: "success", statuses: [] });
+      if (url.includes("/issues/58/labels") && method === "GET") return Response.json([]);
+      if (url.includes("/issues/58/comments") && method === "POST") {
+        seen.comments.push(String(JSON.parse(String(init?.body ?? "{}")).body ?? ""));
+        return Response.json({ id: 1 }, { status: 201 });
+      }
+      if (url.includes("/issues/58/comments")) return Response.json([]);
+      return Response.json({});
+    });
+
+    await processJob(env, {
+      type: "github-webhook",
+      deliveryId: "screenshot-table-advisory",
+      eventName: "pull_request",
+      payload: {
+        action: "opened",
+        installation: { id: 123, account: { login: "JSONbored", id: 1, type: "User" } },
+        repository: { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } },
+        pull_request: { number: 58, title: "New button color", state: "open", user: { login: "visual-contributor" }, head: { sha: "vis58" }, labels: [{ name: "visual" }], body: "Changed the button color.", mergeable_state: "clean", reviewDecision: "APPROVED" },
+      },
+    });
+
+    // Never closed -- "advisory" must not enforce, only surface a finding.
+    expect(seen.closed).toBe(false);
+    const closeAudit = await env.DB.prepare("select count(*) as n from audit_events where event_type = 'agent.action.close'").first<{ n: number }>();
+    expect(closeAudit?.n ?? 0).toBe(0);
+    // The finding surfaces in the published unified PR comment's advisory findings section (the `advisories`
+    // DB table row is written once, EARLY, before this late-appended finding exists -- so the live-published
+    // comment, not that row, is the correct place to observe it).
+    const finalComment = seen.comments.at(-1) ?? "";
+    expect(finalComment).toContain("Missing before/after screenshot table");
+    expect(finalComment).toContain("before/after screenshot table to the pull request description");
+  });
+
   it("screenshot-table gate (#2006): an in-scope PR WITH a valid before/after table is NOT closed by the gate (no false-positive)", async () => {
     const env = createTestEnv({
       GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem(),

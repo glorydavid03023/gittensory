@@ -10,6 +10,10 @@ const ISSUE_EVENTS_RECENT_PAGE_LIMIT = 10;
 // earliest reviews on a PR with a long review history and could dismiss (or miss) the wrong one.
 const REVIEW_PAGE_SIZE = 100;
 const REVIEW_PAGE_LIMIT = 10;
+// buildLowQualityCommitMessageFinding only inspects `commitMessages[0]` (the PR's oldest/primary commit,
+// which is what GitHub's commits-list endpoint returns first — oldest-first, no sort override) so a single
+// page is enough to give that signal a correct read regardless of how many commits the PR carries.
+const COMMIT_MESSAGES_PAGE_SIZE = 100;
 
 // The GitHub write primitives the maintainer auto-maintain layer (#778) uses to act on a PR's STATE — never
 // its source. Thin wrappers over the installation-scoped REST API, mirroring labels.ts / comments.ts. Each
@@ -178,6 +182,31 @@ export async function updatePullRequestBranch(
       ...(expectedHeadSha ? { expected_head_sha: expectedHeadSha } : {}),
     });
   });
+}
+
+/** The PR's commit subject+body messages, oldest-first (GitHub's default order for this endpoint, no sort
+ *  override) — feeds the live gate's slop-assessment `low_quality_commit_message` signal
+ *  (`buildLowQualityCommitMessageFinding`, weight 15), which was previously always skipped in production
+ *  because nothing fetched and threaded this through `buildSlopAssessment`. Best-effort: any fetch failure
+ *  (network, auth, rate limit) returns `[]`, degrading to the pre-fix behavior (the signal stays silent)
+ *  rather than failing the whole gate evaluation over a non-essential enrichment call. */
+export async function listPullRequestCommitMessages(env: Env, installationId: number, repoFullName: string, pullNumber: number): Promise<string[]> {
+  try {
+    const { owner, repo } = splitRepo(repoFullName);
+    return await withInstallationTokenRetry(env, installationId, async (token) => {
+      const octokit = makeInstallationOctokit(env, token, "live", githubRateLimitAdmissionKeyForInstallation(installationId));
+      const response = await octokit.request("GET /repos/{owner}/{repo}/pulls/{pull_number}/commits", {
+        owner,
+        repo,
+        pull_number: pullNumber,
+        per_page: COMMIT_MESSAGES_PAGE_SIZE,
+      });
+      const commits = response.data as Array<{ commit?: { message?: string | null } | null }>;
+      return commits.flatMap((entry) => (entry.commit?.message ? [entry.commit.message] : []));
+    });
+  } catch {
+    return [];
+  }
 }
 
 /** Post a plain issue/PR comment (used for the templated close message before closing). */
