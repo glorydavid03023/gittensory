@@ -7,6 +7,7 @@
   "sideEffects": false,
   "type": "module",
   "scripts": {
+    "postinstall": "fumadocs-mdx",
     "dev": "vite dev",
     "build": "vite build",
     "build:cloudflare": "npm --prefix ../.. run ui:build",
