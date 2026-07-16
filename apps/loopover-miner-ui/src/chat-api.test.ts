@@ -1,8 +1,65 @@
+import { Readable } from "node:stream";
+
 import { describe, expect, it } from "vitest";
 
-import { isChatRoute, parseChatRequestBody, streamChatSse, type ChatApiDeps } from "../vite-chat-api";
+import { chatApiPlugin, isChatRoute, parseChatRequestBody, streamChatSse, type ChatApiDeps } from "../vite-chat-api";
 
 type Event = { type: string; [key: string]: unknown };
+
+type FakeRes = {
+  statusCode: number;
+  headers: Record<string, string>;
+  chunks: string[];
+  ended: boolean;
+  setHeader: (key: string, value: string) => void;
+  write: (chunk: string) => void;
+  end: (body?: string) => void;
+};
+
+function captureMiddleware(pluginDeps?: ChatApiDeps) {
+  const plugin = pluginDeps ? chatApiPlugin(pluginDeps) : chatApiPlugin();
+  let middleware: ((req: unknown, res: unknown, next: () => void) => void) | undefined;
+  (
+    plugin as unknown as { configureServer: (server: { middlewares: { use: (fn: unknown) => void } }) => void }
+  ).configureServer({
+    middlewares: {
+      use: (fn) => {
+        middleware = fn as typeof middleware;
+      },
+    },
+  });
+  return middleware as (req: unknown, res: unknown, next: () => void) => void;
+}
+
+function fakeReq(method: string, url: string, body: string) {
+  const req = Readable.from([body]) as Readable & { method: string; url: string };
+  req.method = method;
+  req.url = url;
+  return req;
+}
+
+function fakeRes(): FakeRes {
+  return {
+    statusCode: 0,
+    headers: {},
+    chunks: [],
+    ended: false,
+    setHeader(key, value) {
+      this.headers[key.toLowerCase()] = value;
+    },
+    write(chunk) {
+      this.chunks.push(chunk);
+    },
+    end(body) {
+      if (body !== undefined) this.chunks.push(body);
+      this.ended = true;
+    },
+  };
+}
+
+async function waitUntilEnded(res: FakeRes) {
+  for (let i = 0; i < 500 && !res.ended; i += 1) await new Promise((resolve) => setTimeout(resolve, 1));
+}
 
 function deps(events: Event[], overrides: Partial<ChatApiDeps> = {}): ChatApiDeps {
   return {
@@ -133,5 +190,65 @@ describe("streamChatSse (#6517)", () => {
     };
     await collect(streamChatSse([{ role: "user", content: "q" }], custom));
     expect(seenEnv).toEqual({ MINER_CODING_AGENT_PROVIDER: "claude-cli" });
+  });
+});
+
+describe("chatApiPlugin middleware (#6517)", () => {
+  it("passes a non-chat request through to next() without responding", () => {
+    const middleware = captureMiddleware(deps([{ type: "done" }]));
+    const res = fakeRes();
+    let nexted = false;
+    middleware(fakeReq("GET", "/api/run-state", ""), res, () => {
+      nexted = true;
+    });
+    expect(nexted).toBe(true);
+    expect(res.ended).toBe(false);
+  });
+
+  it("rejects a malformed body with a non-streamed 400 JSON error before opening a stream", async () => {
+    const middleware = captureMiddleware(deps([{ type: "done" }]));
+    const res = fakeRes();
+    middleware(fakeReq("POST", "/api/chat", "{bad"), res, () => {});
+    await waitUntilEnded(res);
+    expect(res.statusCode).toBe(400);
+    expect(res.headers["content-type"]).toBe("application/json");
+    expect(res.chunks.join("")).toBe(JSON.stringify({ error: "invalid_json" }));
+  });
+
+  it("streams the grounding events as SSE for a valid body", async () => {
+    const middleware = captureMiddleware(deps([{ type: "text", text: "hi" }, { type: "done" }]));
+    const res = fakeRes();
+    middleware(
+      fakeReq("POST", "/api/chat", JSON.stringify({ messages: [{ role: "user", content: "status?" }] })),
+      res,
+      () => {},
+    );
+    await waitUntilEnded(res);
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["content-type"]).toBe("text/event-stream");
+    expect(res.headers["cache-control"]).toBe("no-cache");
+    expect(res.chunks).toEqual([
+      `data: ${JSON.stringify({ type: "text", text: "hi" })}\n\n`,
+      `data: ${JSON.stringify({ type: "done" })}\n\n`,
+    ]);
+    expect(res.ended).toBe(true);
+  });
+
+  it("falls back to the default engine module (fail-closed) when no deps are injected", async () => {
+    // No deps => the real streamChatGrounding from the built engine dist; the test env configures no
+    // agent-sdk provider, so it emits a single fail-closed error event then done — never a real model call.
+    const middleware = captureMiddleware();
+    const res = fakeRes();
+    middleware(
+      fakeReq("POST", "/api/chat", JSON.stringify({ messages: [{ role: "user", content: "q" }] })),
+      res,
+      () => {},
+    );
+    await waitUntilEnded(res);
+    expect(res.statusCode).toBe(200);
+    expect(res.headers["content-type"]).toBe("text/event-stream");
+    const joined = res.chunks.join("");
+    expect(joined).toContain('"type":"error"');
+    expect(joined).toContain('"type":"done"');
   });
 });
