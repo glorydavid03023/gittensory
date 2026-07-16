@@ -1045,7 +1045,7 @@ describe("runSelfTuneBreaker — miner-scoped breaker (#2352)", () => {
 
 describe("processJob(github-webhook) wires pr_outcome recording on a PR close", () => {
   it("a closed+merged pull_request webhook records the pr_outcome ground truth", async () => {
-    const env = createTestEnv({ LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv();
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const url = input.toString();
       if (url.includes("/access_tokens"))

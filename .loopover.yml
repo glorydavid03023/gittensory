@@ -110,6 +110,7 @@ settings:
         removeOtherTypeLabels: false
         trustMaintainerAuthoredIssueForReward: true
   reviewEvasionProtection: close
+  draftPrClosePolicy: close
   # Agent-layer autonomy dial (#773): without this block every action class defaults to "observe"
   # (deny-by-default) -- loopover had NO repository_settings DB row at all, so merge/close/approve
   # actions were silently never taken regardless of review verdict (#6401, #6402 sat fully reviewed,

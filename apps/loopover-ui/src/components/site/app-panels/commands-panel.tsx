@@ -76,6 +76,7 @@ export function CommandsPanel() {
       isLoading={commands.status === "loading"}
       isError={commands.status === "error"}
       errorKind={commands.status === "error" ? commands.errorKind : undefined}
+      errorLabel="Command simulator"
       isEmpty={commands.status === "ready" && commands.data.commands.length === 0}
       onRetry={commands.reload}
       onRefresh={commands.reload}
@@ -243,9 +244,9 @@ function BotReply({ boundary, body }: { boundary: CommandSample["boundary"]; bod
             isPrivate ? "bg-mint text-primary-foreground" : "bg-success text-background",
           )}
         >
-          G
+          L
         </span>
-        <span className="font-mono text-token-xs text-foreground">gittensory[bot]</span>
+        <span className="font-mono text-token-xs text-foreground">loopover[bot]</span>
         <span
           className={cn(
             "ml-auto rounded-token border-hairline px-1.5 py-0.5 font-mono text-token-2xs uppercase tracking-wider",

@@ -35,7 +35,7 @@ export function PrQuietCompare() {
           ))}
         </ul>
         <CommentBlock
-          author="gittensory[bot]"
+          author="loopover[bot]"
           body="Confirmed miner. Preflight: ready. One linked issue · one squashed commit. Maintainer packet available on request."
           variant="quiet"
         />

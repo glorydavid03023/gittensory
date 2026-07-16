@@ -6,17 +6,16 @@
   "description": "Foundation CLI for the local LoopOver miner runtime.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/JSONbored/gittensory.git",
+    "url": "git+https://github.com/JSONbored/loopover.git",
     "directory": "packages/loopover-miner"
   },
-  "homepage": "https://github.com/JSONbored/gittensory#readme",
+  "homepage": "https://github.com/JSONbored/loopover#readme",
   "bugs": {
-    "url": "https://github.com/JSONbored/gittensory/issues"
+    "url": "https://github.com/JSONbored/loopover/issues"
   },
   "keywords": [
     "gittensor",
-    "gittensory",
-    "miner",
+        "miner",
     "cli",
     "agent"
   ],

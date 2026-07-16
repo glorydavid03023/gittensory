@@ -1,6 +1,6 @@
 {
-  "name": "Gittensory Control Panel",
-  "short_name": "Gittensory",
+  "name": "LoopOver Control Panel",
+  "short_name": "LoopOver",
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",

@@ -26,6 +26,9 @@
 //   • 0090 — both 0090_contributor_cap_label (#2479) and 0090_pull_request_detail_sync_head_sha (#2527)
 //     merged with bare ADD COLUMN statements. Preserve both filenames so already-applied databases never
 //     replay either ALTER under a new migration name.
+//   • 0156 — both 0156_draft_pr_close_policy and 0156_pull_request_screenshot_table_presence_satisfied
+//     merged independently from the same base and were both applied to production before the collision
+//     surfaced; bare ADD COLUMN statements, same grandfather reasoning as 0074/0090.
 import { readdirSync, readFileSync } from "node:fs";
 import { detectMigrationCollisions, extractMigrationNumber, KNOWN_MIGRATION_DUPLICATES, MIGRATION_FILENAME_PATTERN } from "../src/db/migration-collisions.ts";
 import { detectColumnCollisions } from "../src/db/migration-column-extraction.ts";

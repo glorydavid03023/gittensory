@@ -75,7 +75,10 @@ describe("KNOWN_MIGRATION_DUPLICATES (#2550)", () => {
   it("stays byte-identical to scripts/check-migrations.mjs's grandfathered list", () => {
     // A drift here would mean the CI script and the live premerge recheck disagree about what's grandfathered
     // — this pins the exact set so a future addition to one side without the other is caught immediately.
-    expect([...KNOWN_MIGRATION_DUPLICATES.keys()].sort((a, b) => a - b)).toEqual([15, 17, 74, 90]);
+    expect([...KNOWN_MIGRATION_DUPLICATES.keys()].sort((a, b) => a - b)).toEqual([15, 17, 74, 90, 156]);
     expect(KNOWN_MIGRATION_DUPLICATES.get(90)).toEqual(new Set(["0090_contributor_cap_label.sql", "0090_pull_request_detail_sync_head_sha.sql"]));
+    expect(KNOWN_MIGRATION_DUPLICATES.get(156)).toEqual(
+      new Set(["0156_draft_pr_close_policy.sql", "0156_pull_request_screenshot_table_presence_satisfied.sql"]),
+    );
   });
 });

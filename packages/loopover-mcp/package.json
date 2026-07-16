@@ -6,12 +6,12 @@
   "description": "Local stdio MCP wrapper for the LoopOver Gittensor base-agent.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/JSONbored/gittensory.git",
+    "url": "git+https://github.com/JSONbored/loopover.git",
     "directory": "packages/loopover-mcp"
   },
-  "homepage": "https://github.com/JSONbored/gittensory#readme",
+  "homepage": "https://github.com/JSONbored/loopover#readme",
   "bugs": {
-    "url": "https://github.com/JSONbored/gittensory/issues"
+    "url": "https://github.com/JSONbored/loopover/issues"
   },
   "keywords": [
     "gittensor",

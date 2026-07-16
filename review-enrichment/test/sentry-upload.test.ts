@@ -152,7 +152,7 @@ test("upload-sourcemaps calls Sentry CLI with release association on upload", as
       "set-commits",
       "gittensory-rees@abc123",
       "--commit",
-      "JSONbored/gittensory@abc123",
+      "JSONbored/loopover@abc123",
       "--ignore-missing",
     ]);
     assert.deepEqual(calls[2], ["sourcemaps", "--org", "jsonbored", "--project", "rees", "inject", "dist"]);

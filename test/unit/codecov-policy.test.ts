@@ -196,4 +196,48 @@ describe("Codecov policy", () => {
     );
     expect(uiPkg.devDependencies["@codecov/bundle-analyzer"]).toBeDefined();
   });
+
+  it("captures review-enrichment node:test coverage for Codecov (#6250)", () => {
+    const vitestConfig = readFileSync("vitest.config.ts", "utf8");
+    expect(vitestConfig).not.toMatch(/review-enrichment\/src\/analyzers\/codeowners\.ts/);
+
+    const rootPkg = JSON.parse(readFileSync("package.json", "utf8")) as { scripts: Record<string, string> };
+    expect(rootPkg.scripts["rees:coverage"]).toBe("node scripts/rees-coverage.mjs");
+    const reesCoverageScript = readFileSync("scripts/rees-coverage.mjs", "utf8");
+    expect(reesCoverageScript).toContain("c8");
+    expect(reesCoverageScript).toContain("review-enrichment");
+    expect(reesCoverageScript).toContain("coverage");
+
+    const reesPkg = JSON.parse(readFileSync("review-enrichment/package.json", "utf8")) as {
+      devDependencies: Record<string, string>;
+    };
+    expect(reesPkg.devDependencies.c8).toBeDefined();
+
+    const codecov = readYaml("codecov.yml");
+    const reesFlag = nestedRecord(codecov, ["flags", "rees"]);
+    expect(reesFlag.carryforward).toBe(true);
+    expect(reesFlag.paths).toEqual(["review-enrichment/"]);
+
+    const workflow = readYaml(".github/workflows/ci.yml");
+    const validateCode = nestedRecord(workflow, ["jobs", "validate-code"]);
+    const codeSteps = recordArray(validateCode.steps, "jobs.validate-code.steps");
+    const coverageStep = codeSteps.find((step) => step.name === "REES coverage");
+    const verifyStep = codeSteps.find((step) => step.name === "Verify REES coverage report exists");
+    const trustedUpload = codeSteps.find((step) => step.name === "Upload REES coverage to Codecov");
+    const forkUpload = codeSteps.find((step) => step.name === "Upload REES coverage to Codecov (fork PR tokenless)");
+    expect(coverageStep).toBeDefined();
+    expect(String(coverageStep!.run)).toContain("rees:coverage");
+    expect(verifyStep).toBeDefined();
+    expect(String(verifyStep!.run)).toContain("review-enrichment/coverage/lcov.info");
+    expect(trustedUpload).toBeDefined();
+    expect(record(trustedUpload!.with, "rees trusted upload").flags).toBe("rees");
+    expect(forkUpload).toBeDefined();
+    expect(record(forkUpload!.with, "rees fork upload").flags).toBe("rees");
+    expect(String(forkUpload!.if)).toContain("fork == true");
+
+    const validateTests = nestedRecord(workflow, ["jobs", "validate-tests"]);
+    expect(String(validateTests.if)).toContain("needs.changes.outputs.rees == 'true'");
+    const validateTestsMerge = nestedRecord(workflow, ["jobs", "validate-tests-merge"]);
+    expect(String(validateTestsMerge.if)).toContain("needs.changes.outputs.rees == 'true'");
+  });
 });

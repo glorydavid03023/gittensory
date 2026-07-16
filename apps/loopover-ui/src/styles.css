@@ -8,7 +8,7 @@
  * Site-only additions on top of the shared design system (imported above
  * from @loopover/ui-kit/theme.css — tokens, base layer, and the
  * border-hairline family the shared components depend on now live there).
- * Everything below is specific to gittensory-ui's own marketing/docs pages
+ * Everything below is specific to loopover-ui's own marketing/docs pages
  * and dashboard chrome — hero flourishes, gradients, nav accents — not
  * needed by a shared component, so it stays local.
  */

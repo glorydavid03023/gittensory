@@ -18,7 +18,7 @@ const readDashboard = (): Dashboard => JSON.parse(readFileSync(dashboardPath, "u
 // point (mirrors the just-merged #5191 callout target). Kept as an in-repo path so the link-target-exists
 // invariant below can prove it is not a dead link.
 const AMS_GUIDE_REPO_PATH = "packages/loopover-miner/docs/observability.md";
-const AMS_GUIDE_URL = `https://github.com/JSONbored/gittensory/blob/main/${AMS_GUIDE_REPO_PATH}`;
+const AMS_GUIDE_URL = `https://github.com/JSONbored/loopover/blob/main/${AMS_GUIDE_REPO_PATH}`;
 
 function amsPanel(dashboard = readDashboard()): TextPanel | undefined {
   return dashboard.panels.find((panel) => /AMS/i.test(panel.title ?? ""));

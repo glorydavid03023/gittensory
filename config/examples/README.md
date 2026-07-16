@@ -239,10 +239,10 @@ required for either family and applies to nothing on its own.
 
 ## Maintainer-mention nag moderation
 
-`settings.reviewNagMonitoredMentions` extends the `@gittensory`-ping review-nag cooldown
+`settings.reviewNagMonitoredMentions` extends the `@loopover`-ping review-nag cooldown
 (`reviewNagPolicy`/`reviewNagMaxPings`/`reviewNagCooldownDays`/`reviewNagLabel` — same settings,
 one shared policy) to **also** throttle a thread's own author repeatedly @-mentioning a configured
-maintainer login, counted independently per login and independently of the `@gittensory` counter:
+maintainer login, counted independently per login and independently of the `@loopover` counter:
 
 ```yaml
 # .loopover.yml (global default)

@@ -2,7 +2,7 @@
 
 ## Purpose
 
-This runbook records the **post-port** operating model for the reviewbot → gittensory convergence tracked by:
+This runbook records the **post-port** operating model for the reviewbot → loopover convergence tracked by:
 
 - `#983` — parent convergence / migration tracker
 - `#1029` — self-host / packaging layer
@@ -13,16 +13,16 @@ This runbook records the **post-port** operating model for the reviewbot → git
 - `#980` — Docker / compose self-host
 - `#981` — configuration, secrets, onboarding
 - `#982` — dashboard / observability
-- `#1030` — decommission legacy reviewbot identity + repo, keep gittensory as the single project
+- `#1030` — decommission legacy reviewbot identity + repo, keep loopover as the single project
 
-The old vendor/embed plan is obsolete. The review system now lives in **gittensory-native codepaths** guarded by `LOOPOVER_REVIEW_*` flags. There is no `REVIEWBOT_ENGINE_ENABLED` path in this repository.
+The old vendor/embed plan is obsolete. The review system now lives in **loopover-native codepaths** guarded by `LOOPOVER_REVIEW_*` flags. There is no `REVIEWBOT_ENGINE_ENABLED` path in this repository.
 
 ## Current architecture
 
-- **Single project:** gittensory is the only source repo for the converged review system.
+- **Single project:** loopover is the only source repo for the converged review system.
 - **Native port:** review features live under `src/review/**`, `src/queue/processors.ts`, and related first-party modules.
 - **Public comment path:** the unified in-place PR comment is rendered unconditionally by the native bridge — it is the only comment-rendering path (the legacy multi-panel renderer and its `LOOPOVER_REVIEW_UNIFIED_COMMENT` flag were retired).
-- **Infra model:** D1 / Queue / AI / optional Vectorize / optional R2 / optional Browser bindings are declared directly in gittensory.
+- **Infra model:** D1 / Queue / AI / optional Vectorize / optional R2 / optional Browser bindings are declared directly in loopover.
 - **Config model:** rollout is controlled by `LOOPOVER_REVIEW_*` flags plus the per-repo allowlist `LOOPOVER_REVIEW_REPOS`.
 - **Parity model:** parity is measured as a shadow/deploy-time comparison against authoritative legacy audit rows; local checkout validation proves structure and safety, not historical decision identity.
 
@@ -61,7 +61,7 @@ These replace the old notion of a separate reviewbot engine toggle.
 
 ## External decommission checklist
 
-Run these only after parity evidence is preserved and the native gittensory path is holding:
+Run these only after parity evidence is preserved and the native loopover path is holding:
 
 1. **Preserve evidence first**
    - export or snapshot the authoritative audit / parity evidence needed for rollback and analytics
@@ -77,7 +77,7 @@ Run these only after parity evidence is preserved and the native gittensory path
 
 4. **Archive, then delete the legacy repo**
    - archive first for a short confirmation window
-   - delete only after native gittensory behavior is validated and rollback is no longer required
+   - delete only after native loopover behavior is validated and rollback is no longer required
 
 5. **Do not couple deletion to public-OSS expansion**
    - the “hide how it works” design remains a separate gate
@@ -117,7 +117,7 @@ npm run test:ci
 
 ## Repository status after convergence
 
-- gittensory owns the converged implementation
+- loopover owns the converged implementation
 - docs must describe the native-port model only
 - legacy decommission is an operator checklist, not an implicit code path
 - the public-OSS flip remains separately gated
@@ -144,7 +144,7 @@ private operator handoff for #1826 instead of committing it here.
 | Historical visual-audit storage | R2 buckets | Historical screenshot/audit capture storage from earlier Cloudflare-hosted review execution. | No current `r2_buckets` block exists in `wrangler.jsonc`; remaining interfaces are optional compatibility hooks for self-host blob storage. | May contain historical review artifacts; contents were not read or listed during this inventory. | **retire-later / needs owner decision** — confirm retention value and out-of-repo consumers in a private operator follow-up before deletion. |
 | Removed platform capabilities | Workers AI / Browser Rendering | Historical hosted review and visual-capture capabilities. | No current binding blocks exist in `wrangler.jsonc`; optional TypeScript interfaces remain for compatibility adapters. | None at rest in this repo. | **keep code as-is / no action** — these are removed capabilities, not storage resources to retire from this public runbook. |
 | Historical config namespace | KV namespace | Historical per-repo configuration storage predating config-as-code. | No current KV binding remains in `wrangler.jsonc`; current configuration flows use repo config and database-backed settings. | N/A in this public runbook. | **no action needed here** — exact namespace identifiers and account-listing evidence belong in the private operator handoff if needed. |
-| Other account resource classes | Hyperdrive / unrelated projects | Out of scope for gittensory cleanup. | `wrangler.jsonc` declares no binding for these resource classes. | N/A. | **not applicable** — do not enumerate unrelated account resources in this repo. |
+| Other account resource classes | Hyperdrive / unrelated projects | Out of scope for loopover cleanup. | `wrangler.jsonc` declares no binding for these resource classes. | N/A. | **not applicable** — do not enumerate unrelated account resources in this repo. |
 
 ### wrangler.jsonc binding hygiene
 

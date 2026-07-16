@@ -182,7 +182,7 @@ async function main(): Promise<number> {
 
     const sha = nonBlank(process.env.SENTRY_COMMIT_SHA) ?? nonBlank(process.env.RAILWAY_GIT_COMMIT_SHA);
     if (sha) {
-      const repo = nonBlank(process.env.SENTRY_REPOSITORY) ?? "JSONbored/gittensory";
+      const repo = nonBlank(process.env.SENTRY_REPOSITORY) ?? "JSONbored/loopover";
       const previous = nonBlank(process.env.SENTRY_PREVIOUS_COMMIT_SHA);
       const spec = previous ? `${repo}@${previous}..${sha}` : `${repo}@${sha}`;
       runSentry(["releases", ...projectArgs, "set-commits", release!, "--commit", spec, "--ignore-missing"], {

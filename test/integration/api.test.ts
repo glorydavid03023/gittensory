@@ -2147,7 +2147,14 @@ describe("api routes", () => {
 
   it("serves installation repair diagnostics and refreshes installation health", async () => {
     const app = createApp();
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
+    const env = createTestEnv({
+      GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem(),
+      LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo",
+    });
+    // Isolate the first two /repair calls below from the real JSONbored/gittensory repo's live
+    // .loopover.yml -- this test's intent is pure DB-settings resolution. The later, more specific
+    // fetch stub (for the /refresh flow) replaces this one.
+    vi.stubGlobal("fetch", async () => new Response("not found", { status: 404 }));
     const repoPayload = { name: "gittensory", full_name: "JSONbored/gittensory", private: true, default_branch: "main", owner: { login: "JSONbored" } };
     await upsertInstallation(env, {
       installation: {
@@ -2160,6 +2167,10 @@ describe("api routes", () => {
       repositories: [repoPayload],
     });
     await upsertRepositoryFromGitHub(env, repoPayload, 777);
+    // Force a deterministic 404 -- otherwise the manifest resolver's live fetch for "JSONbored/gittensory"'s
+    // .loopover.yml succeeds via GitHub's repo-rename redirect and returns the CURRENT (broader) autonomy
+    // grant, which would upgrade requiredPermissions beyond what this test asserts.
+    vi.stubGlobal("fetch", async () => new Response("Not Found", { status: 404 }));
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
       commentMode: "all_prs",

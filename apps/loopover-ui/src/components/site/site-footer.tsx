@@ -62,7 +62,7 @@ export function SiteFooter() {
           </p>
           <div className="mt-5 flex items-center gap-3">
             <a
-              href="https://github.com/jsonbored/gittensory"
+              href="https://github.com/jsonbored/loopover"
               target="_blank"
               rel="noreferrer"
               className="inline-flex h-8 w-8 items-center justify-center rounded-token border border-border text-muted-foreground transition-colors duration-150 hover:text-foreground hover:border-strong focus-ring"

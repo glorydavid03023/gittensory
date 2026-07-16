@@ -256,13 +256,11 @@ describe("agentMaintenanceHeadMatchesGate", () => {
     // The ONLY thing that must stop it is the stale-head guard in maybeRunAgentMaintenance.
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       autonomy: { merge: "auto", approve: "auto", close: "auto" },
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "off", publicSurface: "off", checkRunMode: "off" } });
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const url = input.toString();
       if (url === "https://api.gittensor.io/miners") return Response.json([]);
@@ -953,7 +951,7 @@ describe("one-shot reopen prevention", () => {
       return new Response("not found", { status: 404 });
     });
 
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: generateRsaPrivateKeyPem(), GITHUB_APP_SLUG: "gittensory", LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: generateRsaPrivateKeyPem(), GITHUB_APP_SLUG: "gittensory" });
     await repositoriesModule.upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory", autonomy: { merge: "auto", request_changes: "auto" } });
 
     await processJob(env, {
@@ -984,7 +982,7 @@ describe("one-shot reopen prevention", () => {
       return new Response("not found", { status: 404 });
     });
 
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: generateRsaPrivateKeyPem(), GITHUB_APP_SLUG: "gittensory", LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: generateRsaPrivateKeyPem(), GITHUB_APP_SLUG: "gittensory" });
     await repositoriesModule.upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory", autonomy: { close: "auto_with_approval" } });
 
     await processJob(env, {
@@ -1491,7 +1489,7 @@ describe("converted_to_draft gate-close (draft-dodge prevention)", () => {
       return new Response("not found", { status: 404 });
     });
 
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: generateRsaPrivateKeyPem(), GITHUB_APP_SLUG: "gittensory", LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: generateRsaPrivateKeyPem(), GITHUB_APP_SLUG: "gittensory" });
     await setupRepo(env, { autonomy: null });
     await recordGateBlockOutcome(env, { repoFullName: "JSONbored/gittensory", pullNumber: 42, headSha: "abc123", blockerCodes: ["missing_linked_issue"] });
 
@@ -1681,7 +1679,7 @@ describe("converted_to_draft gate-close (draft-dodge prevention)", () => {
       return new Response("not found", { status: 404 });
     });
 
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: generateRsaPrivateKeyPem(), GITHUB_APP_SLUG: "gittensory", LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: generateRsaPrivateKeyPem(), GITHUB_APP_SLUG: "gittensory" });
     await setupRepo(env, { autonomy: { approve: "auto" } });
     await recordGateBlockOutcome(env, { repoFullName: "JSONbored/gittensory", pullNumber: 42, headSha: "abc123", blockerCodes: ["missing_linked_issue"] });
 
@@ -1704,7 +1702,7 @@ describe("converted_to_draft gate-close (draft-dodge prevention)", () => {
       return new Response("not found", { status: 404 });
     });
 
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: generateRsaPrivateKeyPem(), GITHUB_APP_SLUG: "gittensory", LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: generateRsaPrivateKeyPem(), GITHUB_APP_SLUG: "gittensory" });
     await setupRepo(env, { autonomy: { close: "auto_with_approval" } });
     await recordGateBlockOutcome(env, { repoFullName: "JSONbored/gittensory", pullNumber: 42, headSha: "abc123", blockerCodes: ["missing_linked_issue"] });
 
@@ -1787,14 +1785,12 @@ describe("review-evasion protection (#review-evasion-protection)", () => {
     });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      publicSurface: "off",
-      commentMode: "off",
-      checkRunMode: "off",
       autonomy: { close: "auto" },
       agentPaused: false,
       reviewEvasionProtection: "close",
       ...overrides,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { publicSurface: "off", commentMode: "off", checkRunMode: "off" } });
   }
 
   // Generic GitHub fetch stub covering every endpoint the evasion handlers (and the surrounding webhook
@@ -2098,7 +2094,8 @@ describe("review-evasion protection (#review-evasion-protection)", () => {
         },
         repositories: [{ name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }],
       });
-      await upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory", publicSurface: "off", commentMode: "off", checkRunMode: "off", autonomy: { close: "auto" }, agentPaused: false, reviewEvasionProtection: "close" });
+      await upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory", autonomy: { close: "auto" }, agentPaused: false, reviewEvasionProtection: "close" });
+      await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { publicSurface: "off", commentMode: "off", checkRunMode: "off" } });
       await repositoriesModule.startActiveReviewTracking(env, { repoFullName: "JSONbored/gittensory", pullNumber: 42, headSha: "abc123", deliveryId: "review-start-1" });
 
       await processJob(env, { type: "github-webhook", deliveryId: "self-close-no-write", eventName: "pull_request", payload: closedPayload("contributor") });
@@ -2693,7 +2690,8 @@ describe("review-evasion protection (#review-evasion-protection)", () => {
         },
         repositories: [{ name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }],
       });
-      await upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory", publicSurface: "off", commentMode: "off", checkRunMode: "off", autonomy: { close: "auto" }, agentPaused: false, reviewEvasionProtection: "close" });
+      await upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory", autonomy: { close: "auto" }, agentPaused: false, reviewEvasionProtection: "close" });
+      await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { publicSurface: "off", commentMode: "off", checkRunMode: "off" } });
       await repositoriesModule.startActiveReviewTracking(env, { repoFullName: "JSONbored/gittensory", pullNumber: 42, headSha: "abc123", deliveryId: "review-start-1" });
 
       await processJob(env, { type: "github-webhook", deliveryId: "draft-evasion-no-write", eventName: "pull_request", payload: draftEvasionPayload("contributor") });
@@ -3161,7 +3159,8 @@ describe("review-evasion protection (#review-evasion-protection)", () => {
         },
         repositories: [{ name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }],
       });
-      await upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory", publicSurface: "off", commentMode: "off", checkRunMode: "off", autonomy: { close: "auto" }, agentPaused: false, reviewEvasionProtection: "close" });
+      await upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory", autonomy: { close: "auto" }, agentPaused: false, reviewEvasionProtection: "close" });
+      await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { publicSurface: "off", commentMode: "off", checkRunMode: "off" } });
 
       await processJob(env, { type: "github-webhook", deliveryId: "draft-cycle-no-write-1", eventName: "pull_request", payload: draftEvasionPayload("contributor") });
       await processJob(env, { type: "github-webhook", deliveryId: "draft-cycle-no-write-2", eventName: "pull_request", payload: draftEvasionPayload("contributor") });
@@ -3432,7 +3431,7 @@ describe("review-evasion protection (#review-evasion-protection)", () => {
 
   describe("bumpPullRequestDraftConversionCount", () => {
     it("increments across repeated calls for the same PR and is independent of head SHA", async () => {
-      const env = createTestEnv({});
+      const env = createTestEnv();
       await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
       await repositoriesModule.upsertPullRequestFromGitHub(env, "JSONbored/gittensory", {
         id: 4242,
@@ -3468,7 +3467,7 @@ describe("review-evasion protection (#review-evasion-protection)", () => {
     });
 
     it("returns 0 for a PR that does not exist (no row to increment)", async () => {
-      const env = createTestEnv({});
+      const env = createTestEnv();
       expect(await repositoriesModule.bumpPullRequestDraftConversionCount(env, "JSONbored/gittensory", 999999, "delivery-x")).toBe(0);
     });
 
@@ -3479,7 +3478,7 @@ describe("review-evasion protection (#review-evasion-protection)", () => {
     // conversion -- pushing the count from 1 to 2 and firing maybeCloseRepeatedDraftCycling's false "2nd
     // offense" close + moderation strike against an innocent contributor.
     it("REGRESSION (#draft-conversion-retry-double-count): a retry redelivery of the SAME deliveryId does not double-count a single physical conversion", async () => {
-      const env = createTestEnv({});
+      const env = createTestEnv();
       await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
       await repositoriesModule.upsertPullRequestFromGitHub(env, "JSONbored/gittensory", {
         id: 5252,
@@ -3627,7 +3626,7 @@ describe("review-evasion protection (#review-evasion-protection)", () => {
 
 describe("markPullRequestLinkedIssueHardRuleViolated (#linked-issue-hard-rule-persistence)", () => {
   it("sets violatedAt + the reason on the first call and never overwrites them on a later call", async () => {
-    const env = createTestEnv({});
+    const env = createTestEnv();
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await repositoriesModule.upsertPullRequestFromGitHub(env, "JSONbored/gittensory", {
       id: 5151,
@@ -3680,7 +3679,7 @@ describe("markPullRequestLinkedIssueHardRuleViolated (#linked-issue-hard-rule-pe
   });
 
   it("truncates an overlong reason to 280 chars, mirroring markPullRequestMergeBlocked", async () => {
-    const env = createTestEnv({});
+    const env = createTestEnv();
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await repositoriesModule.upsertPullRequestFromGitHub(env, "JSONbored/gittensory", {
       id: 5152,
@@ -3703,7 +3702,7 @@ describe("markPullRequestLinkedIssueHardRuleViolated (#linked-issue-hard-rule-pe
   });
 
   it("is a safe no-op when the PR row does not exist yet", async () => {
-    const env = createTestEnv({});
+    const env = createTestEnv();
     await expect(repositoriesModule.markPullRequestLinkedIssueHardRuleViolated(env, "JSONbored/gittensory", 999999, "unreachable")).resolves.toBeUndefined();
   });
 });
@@ -3873,7 +3872,8 @@ describe("installation app_id capture + dual-app webhook filter (#selfhost-app-i
         const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
         await upsertInstallation(env, { action: "created", installation: { id: 123, account: { login: "JSONbored", id: 1, type: "User" }, target_type: "User", repository_selection: "all", permissions: {}, events: [] } });
         await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
-        await upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory", checkRunMode: "off", commentMode: "off", publicSurface: "off" });
+        await upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory" });
+        await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { checkRunMode: "off", commentMode: "off", publicSurface: "off" } });
         await seedWarmPrStateCache(env, "JSONbored/gittensory", 200);
         vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
           const url = input.toString();
@@ -3905,7 +3905,8 @@ describe("installation app_id capture + dual-app webhook filter (#selfhost-app-i
       const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
       await upsertInstallation(env, { action: "created", installation: { id: 123, account: { login: "JSONbored", id: 1, type: "User" }, target_type: "User", repository_selection: "all", permissions: {}, events: [] } });
       await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
-      await upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory", checkRunMode: "off", commentMode: "off", publicSurface: "off" });
+      await upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory" });
+      await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { checkRunMode: "off", commentMode: "off", publicSurface: "off" } });
       await seedWarmPrStateCache(env, "JSONbored/gittensory", 201);
       vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
         const url = input.toString();
@@ -3961,7 +3962,8 @@ describe("installation app_id capture + dual-app webhook filter (#selfhost-app-i
       const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
       await upsertInstallation(env, { action: "created", installation: { id: 9001, account: { login: "owner", id: 1, type: "Organization" }, target_type: "Organization", repository_selection: "selected", permissions: { pull_requests: "write" }, events: [] } });
       await upsertRepositoryFromGitHub(env, { name: "agent-repo", full_name: "owner/agent-repo", private: false, owner: { login: "owner" } }, 9001);
-      await upsertRepositorySettings(env, { repoFullName: "owner/agent-repo", checkRunMode: "off", commentMode: "off", publicSurface: "off" });
+      await upsertRepositorySettings(env, { repoFullName: "owner/agent-repo" });
+      await upsertRepoFocusManifest(env, "owner/agent-repo", { settings: { checkRunMode: "off", commentMode: "off", publicSurface: "off" } });
       await upsertPullRequestFromGitHub(env, "owner/agent-repo", { number: 6, title: "Sweep target", state: "open", user: { login: "contributor" }, head: { sha: "a6" }, base: { ref: "main" }, labels: [], body: "" });
       vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
         const url = input.toString();
@@ -4090,7 +4092,7 @@ describe("backlog-convergence sweep (#selfhost-backlog-convergence)", () => {
   });
 
   it("no-ops safely on a missing repo arg or an un-configured repo", async () => {
-    const env = createTestEnv({});
+    const env = createTestEnv();
     await processJob(env, { type: "backlog-convergence-sweep", requestedBy: "test" });
     await upsertRepositoryFromGitHub(env, { name: "plain-repo", full_name: "owner/plain-repo", private: false, owner: { login: "owner" } });
     await processJob(env, { type: "backlog-convergence-sweep", requestedBy: "test", repoFullName: "owner/plain-repo" });
@@ -4100,7 +4102,7 @@ describe("backlog-convergence sweep (#selfhost-backlog-convergence)", () => {
   });
 
   it("respects the global pause kill-switch: a paused repo records a denial and enqueues nothing", async () => {
-    const env = createTestEnv({});
+    const env = createTestEnv();
     await upsertRepositoryFromGitHub(env, { name: "agent-repo", full_name: "owner/agent-repo", private: false, owner: { login: "owner" } }, 9503);
     await upsertRepositorySettings(env, { repoFullName: "owner/agent-repo", autonomy: { merge: "auto" }, agentPaused: true });
     await upsertPullRequestFromGitHub(env, "owner/agent-repo", { number: 7, title: "Stale surface", state: "open", user: { login: "contributor" }, head: { sha: "abc" }, labels: [], body: "x" });
@@ -4391,14 +4393,19 @@ describe("auto-action convergence: end-to-end plan+execute for the general heuri
       },
       repositories: [{ name: "gittensory", full_name: REPO, private: false, owner: { login: "JSONbored" } }],
     });
+    const { commentMode, publicSurface, checkRunMode, ...restSettingsOverrides } = settingsOverrides;
     await upsertRepositorySettings(env, {
       repoFullName: REPO,
-      commentMode: "off",
-      publicSurface: "off",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       linkedIssueGateMode: "block", // the default blocker mechanism for these tests: missing linked issue -> gate failure
-      ...settingsOverrides,
+      ...restSettingsOverrides,
+    });
+    await upsertRepoFocusManifest(env, REPO, {
+      settings: {
+        commentMode: commentMode ?? "off",
+        publicSurface: publicSurface ?? "off",
+        checkRunMode: checkRunMode ?? "off",
+      },
     });
     // Without a registry snapshot the gate reports a "repo_unregistered" warning finding, which keeps the
     // conclusion at "neutral" instead of "success"/"failure" -- register the repo so the tests below exercise

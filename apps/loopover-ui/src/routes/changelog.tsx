@@ -70,7 +70,7 @@ function Changelog() {
           <Rss className="size-3" aria-hidden /> npm package
         </a>
         <a
-          href="https://github.com/jsonbored/gittensory/releases"
+          href="https://github.com/jsonbored/loopover/releases"
           target="_blank"
           rel="noreferrer"
           className="inline-flex items-center gap-1.5 rounded-token border-hairline px-2.5 py-1 font-mono text-token-2xs text-muted-foreground transition-colors duration-150 hover:text-mint hover:border-strong focus-ring"

@@ -260,14 +260,12 @@ describe("queue processors", () => {
     }
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       autonomy: over.autonomy ?? { merge: "auto", update_branch: "auto" },
       agentPaused: over.agentPaused ?? false,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "off", publicSurface: "off", checkRunMode: "off" } });
   }
 
   function behindWebhook() {
@@ -341,7 +339,8 @@ describe("queue processors", () => {
     const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
     await upsertInstallation(env, { action: "created", installation: { id: 9101, account: { login: "owner", id: 1, type: "Organization" }, target_type: "Organization", repository_selection: "selected", permissions: {}, events: [] } });
     await upsertRepositoryFromGitHub(env, { name: "preview-repo", full_name: "owner/preview-repo", private: false, owner: { login: "owner" } }, 9101);
-    await upsertRepositorySettings(env, { repoFullName: "owner/preview-repo", checkRunMode: "off", commentMode: "off", publicSurface: "off" });
+    await upsertRepositorySettings(env, { repoFullName: "owner/preview-repo" });
+    await upsertRepoFocusManifest(env, "owner/preview-repo", { settings: { checkRunMode: "off", commentMode: "off", publicSurface: "off" } });
     await upsertPullRequestFromGitHub(env, "owner/preview-repo", { number: 9, title: "Clean PR", state: "open", user: { login: "contributor" }, head: { sha: "c9" }, labels: [], body: "x" });
     await upsertPullRequestFile(env, { repoFullName: "owner/preview-repo", pullNumber: 9, path: "src/a.ts", status: "modified", additions: 1, deletions: 0, changes: 1, payload: { patch: "@@\n+export const ok = true;" } });
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
@@ -368,7 +367,8 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "slop-repo", full_name: "owner/slop-repo", private: false, owner: { login: "owner" } }, 9102);
     // slopGateMode != "off" ⇒ shouldCollectSlopEvidence(settings) is true ⇒ reReviewStoredPullRequest enters the
     // refresh branch (the file-refresh body), so the stored files reflect the PR's current head before publishing.
-    await upsertRepositorySettings(env, { repoFullName: "owner/slop-repo", checkRunMode: "off", commentMode: "off", publicSurface: "off", slopGateMode: "advisory" });
+    await upsertRepositorySettings(env, { repoFullName: "owner/slop-repo", slopGateMode: "advisory" });
+    await upsertRepoFocusManifest(env, "owner/slop-repo", { settings: { checkRunMode: "off", commentMode: "off", publicSurface: "off" } });
     await upsertPullRequestFromGitHub(env, "owner/slop-repo", { number: 11, title: "Slop PR", state: "open", user: { login: "contributor" }, head: { sha: "s11" }, labels: [], body: "x" });
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const url = input.toString();
@@ -398,8 +398,8 @@ describe("queue processors", () => {
     // #4603 sub-floor-defect test's settings shape in queue-2.test.ts). copycatGateMode is config-as-code ONLY
     // (no DB column, per RepositorySettings.copycatGateMode's own doc comment) -- setting it on upsertRepositorySettings
     // is silently ignored; it must go through the focus-manifest (.loopover.yml) loader instead, below.
-    await upsertRepositorySettings(env, { repoFullName: "owner/copycat-repo", autonomy: { close: "auto" }, gatePack: "oss-anti-slop", reviewCheckMode: "required", checkRunMode: "off", commentMode: "off", publicSurface: "off" });
-    await upsertRepoFocusManifest(env, "owner/copycat-repo", { gate: { copycat: { mode: "warn" } } });
+    await upsertRepositorySettings(env, { repoFullName: "owner/copycat-repo", autonomy: { close: "auto" }, gatePack: "oss-anti-slop", reviewCheckMode: "required" });
+    await upsertRepoFocusManifest(env, "owner/copycat-repo", { gate: { copycat: { mode: "warn" } }, settings: { checkRunMode: "off", commentMode: "off", publicSurface: "off" } });
     // An earlier open sibling PR whose added code the new PR (below) reproduces verbatim.
     const sourceLines = "function add(a, b) {\nconst total = a + b;\nlogger.debug(total);\nreturn total;\n}\nexport default add;";
     const sourcePatch = sourceLines.split("\n").map((line) => `+${line}`).join("\n");
@@ -430,7 +430,7 @@ describe("queue processors", () => {
   });
 
   it("auto-maintain (#778): a repo with no acting autonomy takes no agent action", async () => {
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem(), LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
     await persistRegistrySnapshot(
       env,
       normalizeRegistryPayload({ "JSONbored/gittensory": { emission_share: 0.01, issue_discovery_share: 0 } }, { kind: "raw-github", url: "https://example.test" }, "2026-05-23T00:00:00.000Z"),
@@ -438,15 +438,13 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       linkedIssueGateMode: "block",
       requireLinkedIssue: true,
       autonomy: { label: "observe" }, // not acting → agent never runs
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "off", publicSurface: "off", checkRunMode: "off" } });
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const url = input.toString();
       if (url === "https://api.gittensor.io/miners") return Response.json([]);
@@ -482,10 +480,7 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       autonomy: { review_state_label: "auto", request_changes: "auto" },
     });
@@ -493,7 +488,7 @@ describe("queue processors", () => {
     // blocker, so the gate now FAILS the author normally (#gate-nonconfirmed — confirmed status no longer
     // neutralizes the verdict). But this repo grants only review_state_label/request_changes autonomy — NOT
     // merge/close/approve — so the failing gate yields a request-changes/label action at most, never a terminal action.
-    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { gate: { linkedIssue: "block" } });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { gate: { linkedIssue: "block" }, settings: { commentMode: "off", publicSurface: "off", checkRunMode: "off" } });
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const url = input.toString();
       if (url === "https://api.gittensor.io/miners") return Response.json([]);
@@ -532,13 +527,11 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       autonomy: { label: "auto" },
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "off", publicSurface: "off", checkRunMode: "off" } });
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const url = input.toString();
       if (url === "https://api.gittensor.io/miners") return Response.json([]);
@@ -574,14 +567,12 @@ describe("queue processors", () => {
     // No installation record seeded → installation lookup returns null (label needs only issues:write, exempt).
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       autonomy: { review_state_label: "auto" },
       agentDryRun: true,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "off", publicSurface: "off", checkRunMode: "off" } });
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const url = input.toString();
       if (url === "https://api.gittensor.io/miners") return Response.json([]);
@@ -623,10 +614,7 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       linkedIssueGateMode: "block",
     });
@@ -661,7 +649,7 @@ describe("queue processors", () => {
       return new Response("not found", { status: 404 });
     });
 
-    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { gate: { linkedIssue: "block" } });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { gate: { linkedIssue: "block" }, settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     await processJob(env, {
       type: "github-webhook",
       deliveryId: "gate-bot-public-skip",
@@ -694,10 +682,7 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       linkedIssueGateMode: "block",
     });
@@ -738,6 +723,7 @@ describe("queue processors", () => {
     await upsertRepoFocusManifest(env, "JSONbored/gittensory", {
       gate: { linkedIssue: "block" },
       review: { auto_review: { ignore_authors: ["renovate*"] } },
+      settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" },
     });
     await processJob(env, {
       type: "github-webhook",
@@ -772,10 +758,7 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "disabled",
       linkedIssueGateMode: "off",
     });
@@ -789,6 +772,7 @@ describe("queue processors", () => {
 
     await upsertRepoFocusManifest(env, "JSONbored/gittensory", {
       review: { auto_review: { ignore_authors: ["release-please*"] } },
+      settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" },
     });
     await processJob(env, {
       type: "github-webhook",
@@ -823,10 +807,7 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "disabled",
       linkedIssueGateMode: "off",
     });
@@ -834,6 +815,7 @@ describe("queue processors", () => {
 
     await upsertRepoFocusManifest(env, "JSONbored/gittensory", {
       review: { auto_review: { ignore_authors: ["renovate*"] } },
+      settings: { commentMode: "off", publicSurface: "off", checkRunMode: "off" },
     });
     await processJob(env, {
       type: "github-webhook",
@@ -870,11 +852,7 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicAudienceMode: "gittensor_only",
-      publicSurface: "comment_only",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       linkedIssueGateMode: "block",
     });
@@ -909,7 +887,7 @@ describe("queue processors", () => {
       return new Response("not found", { status: 404 });
     });
 
-    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { gate: { linkedIssue: "block" } });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { gate: { linkedIssue: "block" }, settings: { commentMode: "all_prs", publicAudienceMode: "gittensor_only", publicSurface: "comment_only", checkRunMode: "off" } });
     await processJob(env, {
       type: "github-webhook",
       deliveryId: "gate-unconfirmed-miner-public-skip",
@@ -942,11 +920,7 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicAudienceMode: "gittensor_only",
-      publicSurface: "comment_only",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       linkedIssueGateMode: "block",
     });
@@ -976,7 +950,7 @@ describe("queue processors", () => {
       return new Response("not found", { status: 404 });
     });
 
-    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { gate: { linkedIssue: "block" } });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { gate: { linkedIssue: "block" }, settings: { commentMode: "all_prs", publicAudienceMode: "gittensor_only", publicSurface: "comment_only", checkRunMode: "off" } });
     await processJob(env, {
       type: "github-webhook",
       deliveryId: "gate-unavailable-miner-public-skip",
@@ -1009,11 +983,7 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicAudienceMode: "oss_maintainer",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       linkedIssueGateMode: "block",
     });
@@ -1047,7 +1017,7 @@ describe("queue processors", () => {
       return new Response("not found", { status: 404 });
     });
 
-    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { gate: { linkedIssue: "block" } });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { gate: { linkedIssue: "block" }, settings: { commentMode: "off", publicAudienceMode: "oss_maintainer", publicSurface: "off", checkRunMode: "off" } });
     await processJob(env, {
       type: "github-webhook",
       deliveryId: "gate-confirmed-block",
@@ -1082,7 +1052,6 @@ describe("queue processors", () => {
       AI_SUMMARIES_ENABLED: "true",
       AI_PUBLIC_COMMENTS_ENABLED: "true",
       AI_DAILY_NEURON_BUDGET: "100000",
-      LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo",
     });
     await persistRegistrySnapshot(
       env,
@@ -1095,10 +1064,7 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       linkedIssueGateMode: "off",
       aiReviewMode: "block",
@@ -1108,6 +1074,7 @@ describe("queue processors", () => {
       slopGateMode: "advisory",
       slopAiAdvisory: true,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "off", publicSurface: "off", checkRunMode: "off" } });
     let gatePatchBody: { conclusion?: string; output?: { title?: string; text?: string } } = {};
     const cacheReadSpy = vi
       .spyOn(repositoriesModule, "getCachedAiReview")
@@ -1171,7 +1138,7 @@ describe("queue processors", () => {
   });
 
   it("finalizes the Gate to neutral instead of leaving it in_progress when gate completion fails", async () => {
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem(), LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
     await persistRegistrySnapshot(
       env,
       normalizeRegistryPayload(
@@ -1183,13 +1150,11 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       linkedIssueGateMode: "off",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "off", publicSurface: "off", checkRunMode: "off" } });
     const patchBodies: Array<{ status?: string; conclusion?: string; output?: { title?: string } }> = [];
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -1243,7 +1208,7 @@ describe("queue processors", () => {
   });
 
   it("does not stamp a current public surface when a required Gate check never finalizes", async () => {
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem(), LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
     await persistRegistrySnapshot(
       env,
       normalizeRegistryPayload(
@@ -1255,14 +1220,12 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       linkedIssueGateMode: "off",
       aiReviewMode: "off",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     let commentPosts = 0;
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -1313,7 +1276,7 @@ describe("queue processors", () => {
   });
 
   it("records the intended label in incomplete-surface audits when a label publishes but Gate never finalizes", async () => {
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem(), LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
     await persistRegistrySnapshot(
       env,
       normalizeRegistryPayload(
@@ -1325,15 +1288,13 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "label_only",
       autoLabelEnabled: true,
       createMissingLabel: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       linkedIssueGateMode: "off",
       aiReviewMode: "off",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "off", publicSurface: "label_only", checkRunMode: "off" } });
     await upsertOfficialMinerDetection(env, "contributor", { status: "confirmed", snapshot: queueMinerSnapshot("contributor") }, 60_000);
     let labelPosts = 0;
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -1388,7 +1349,7 @@ describe("queue processors", () => {
       }
       await originalRecordAuditEvent(auditEnv, event);
     });
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem(), LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
     await persistRegistrySnapshot(
       env,
       normalizeRegistryPayload(
@@ -1400,14 +1361,12 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       linkedIssueGateMode: "off",
       aiReviewMode: "off",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "off", publicSurface: "off", checkRunMode: "off" } });
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
       const method = init?.method ?? "GET";
@@ -1447,7 +1406,7 @@ describe("queue processors", () => {
       }
       await originalRecordAuditEvent(auditEnv, event);
     });
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem(), LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
     await persistRegistrySnapshot(
       env,
       normalizeRegistryPayload(
@@ -1459,14 +1418,12 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       linkedIssueGateMode: "off",
       aiReviewMode: "off",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
       const method = init?.method ?? "GET";
@@ -1501,7 +1458,7 @@ describe("queue processors", () => {
   });
 
   it("propagates a rate-limited Gate completion so the queue retries and the pending Gate stays reviewing", async () => {
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem(), LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
     await persistRegistrySnapshot(
       env,
       normalizeRegistryPayload(
@@ -1513,13 +1470,11 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       linkedIssueGateMode: "off",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "off", publicSurface: "off", checkRunMode: "off" } });
     const patchBodies: Array<{ status?: string; conclusion?: string; output?: { title?: string } }> = [];
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -1565,16 +1520,13 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       linkedIssueGateMode: "block",
       requireLinkedIssue: true,
     });
     // Config turns the gate OFF even though repo settings have reviewCheckMode: required (the gate check-run publishing).
-    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { gate: { enabled: false } });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { gate: { enabled: false }, settings: { commentMode: "off", publicSurface: "off", checkRunMode: "off" } });
     const calls = { gateChecks: 0 };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const url = input.toString();
@@ -1603,7 +1555,7 @@ describe("queue processors", () => {
   });
 
   it("audits opt-in gate check permission failures without blocking webhook processing", async () => {
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem(), LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
     await persistRegistrySnapshot(
       env,
       normalizeRegistryPayload(
@@ -1615,13 +1567,11 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       requireLinkedIssue: true,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "off", publicSurface: "off", checkRunMode: "off" } });
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const url = input.toString();
       if (url.includes("/access_tokens")) return Response.json({ token: "installation-token" });
@@ -1668,12 +1618,10 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const calls = { gateWrites: 0, commentGets: 0, commentPosts: 0 };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -1728,12 +1676,10 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     let commentGets = 0;
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const url = input.toString();
@@ -1773,19 +1719,14 @@ describe("queue processors", () => {
   });
 
   it("reruns the sticky PR panel when a maintainer checks the rerun task", async () => {
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem(), LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicAudienceMode: "oss_maintainer",
-      publicSignalLevel: "standard",
-      publicSurface: "comment_only",
       autoLabelEnabled: false,
-      checkRunMode: "off",
-      includeMaintainerAuthors: true,
       commandAuthorization: { default: ["maintainer", "collaborator", "confirmed_miner"], commands: { "review-now": ["maintainer"] } },
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicAudienceMode: "oss_maintainer", publicSignalLevel: "standard", publicSurface: "comment_only", checkRunMode: "off", includeMaintainerAuthors: true } });
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", {
       number: 45,
       title: "Refresh panel",
@@ -1894,15 +1835,12 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
-      includeMaintainerAuthors: true,
       autonomy: { merge: "auto" },
       commandAuthorization: { default: ["maintainer"], commands: { "review-now": ["maintainer"] } },
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off", includeMaintainerAuthors: true } });
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", {
       number: 46,
       title: "Pending CI rerun",
@@ -1982,17 +1920,12 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicAudienceMode: "oss_maintainer",
-      publicSignalLevel: "standard",
-      publicSurface: "comment_only",
       autoLabelEnabled: false,
-      checkRunMode: "off",
-      includeMaintainerAuthors: true,
       // Slop gate on → the rerun must refresh the PR files before evaluating (the guard fires).
       slopGateMode: "advisory",
       commandAuthorization: { default: ["maintainer", "collaborator", "confirmed_miner"], commands: { "review-now": ["maintainer"] } },
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicAudienceMode: "oss_maintainer", publicSignalLevel: "standard", publicSurface: "comment_only", checkRunMode: "off", includeMaintainerAuthors: true } });
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", {
       number: 45,
       title: "Refresh panel",
@@ -2057,15 +1990,12 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
       autoLabelEnabled: false,
-      checkRunMode: "off",
-      includeMaintainerAuthors: true,
       // Even if repo config tries to allow confirmed miners, the checkbox is a maintainer/write-collaborator
       // control because it mutates the bot's persisted review comment.
       commandAuthorization: { default: ["maintainer", "collaborator", "confirmed_miner"], commands: { "review-now": ["maintainer", "confirmed_miner"] } },
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off", includeMaintainerAuthors: true } });
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", {
       number: 48,
       title: "Miner self-rerun",
@@ -2197,18 +2127,13 @@ describe("queue processors", () => {
   });
 
   it("reruns the sticky PR panel when a write collaborator checks the rerun task", async () => {
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem(), LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicAudienceMode: "oss_maintainer",
-      publicSignalLevel: "standard",
-      publicSurface: "comment_only",
       autoLabelEnabled: false,
-      checkRunMode: "off",
-      includeMaintainerAuthors: true,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicAudienceMode: "oss_maintainer", publicSignalLevel: "standard", publicSurface: "comment_only", checkRunMode: "off", includeMaintainerAuthors: true } });
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", {
       number: 47,
       title: "Refresh panel as collaborator",
@@ -2453,10 +2378,7 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_and_label",
       autoLabelEnabled: true,
-      checkRunMode: "enabled",
       reviewCheckMode: "required",
     });
     let publicCalls = 0;
@@ -2465,7 +2387,7 @@ describe("queue processors", () => {
       return new Response("unexpected public call", { status: 500 });
     });
 
-    await upsertRepoFocusManifest(env, "JSONbored/gittensory", {});
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_and_label", checkRunMode: "enabled" } });
     await processJob(env, {
       type: "github-webhook",
       deliveryId: "pr-labeled-noisy",
@@ -2590,14 +2512,9 @@ describe("queue processors", () => {
 
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSignalLevel: "standard",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "off",
-      checkRunDetailLevel: "minimal",
-      backfillEnabled: true,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "off", publicSignalLevel: "standard", publicSurface: "off", checkRunMode: "off", checkRunDetailLevel: "minimal", backfillEnabled: true } });
     await processJob(env, {
       type: "github-webhook",
       deliveryId: "pr-off",
@@ -2619,15 +2536,9 @@ describe("queue processors", () => {
 
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicAudienceMode: "gittensor_only",
-      publicSignalLevel: "standard",
-      publicSurface: "comment_and_label",
       autoLabelEnabled: true,
-      checkRunMode: "off",
-      checkRunDetailLevel: "minimal",
-      backfillEnabled: true,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "detected_contributors_only", publicAudienceMode: "gittensor_only", publicSignalLevel: "standard", publicSurface: "comment_and_label", checkRunMode: "off", checkRunDetailLevel: "minimal", backfillEnabled: true } });
     await processJob(env, {
       type: "github-webhook",
       deliveryId: "pr-comment-attempt",
@@ -2666,15 +2577,9 @@ describe("queue processors", () => {
 
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicAudienceMode: "gittensor_only",
-      publicSignalLevel: "minimal",
-      publicSurface: "comment_and_label",
       autoLabelEnabled: true,
-      checkRunMode: "off",
-      checkRunDetailLevel: "minimal",
-      backfillEnabled: true,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicAudienceMode: "gittensor_only", publicSignalLevel: "minimal", publicSurface: "comment_and_label", checkRunMode: "off", checkRunDetailLevel: "minimal", backfillEnabled: true } });
     await processJob(env, {
       type: "github-webhook",
       deliveryId: "pr-comment-no-author",
@@ -2739,17 +2644,11 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicAudienceMode: "gittensor_only",
-      publicSignalLevel: "standard",
-      publicSurface: "comment_and_label",
       autoLabelEnabled: false,
-      checkRunMode: "off",
-      checkRunDetailLevel: "minimal",
       reviewCheckMode: "required",
-      backfillEnabled: true,
       autonomy: { update_branch: "auto" },
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "detected_contributors_only", publicAudienceMode: "gittensor_only", publicSignalLevel: "standard", publicSurface: "comment_and_label", checkRunMode: "off", checkRunDetailLevel: "minimal", backfillEnabled: true } });
     let postedBody = "";
     const calls = { comments: 0, gateChecks: 0 };
     let gateFinalized = false;
@@ -2927,17 +2826,11 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicAudienceMode: "gittensor_only",
-      publicSignalLevel: "standard",
-      publicSurface: "comment_and_label",
       autoLabelEnabled: false,
-      checkRunMode: "off",
-      checkRunDetailLevel: "minimal",
       reviewCheckMode: "required",
-      backfillEnabled: true,
       autonomy: { update_branch: "auto" },
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "detected_contributors_only", publicAudienceMode: "gittensor_only", publicSignalLevel: "standard", publicSurface: "comment_and_label", checkRunMode: "off", checkRunDetailLevel: "minimal", backfillEnabled: true } });
     let postedBody = "";
     const calls = { comments: 0, gateChecks: 0 };
     let gateFinalized = false;
@@ -3105,21 +2998,15 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicAudienceMode: "gittensor_only",
-      publicSignalLevel: "standard",
-      publicSurface: "comment_and_label",
       autoLabelEnabled: false,
-      checkRunMode: "off",
-      checkRunDetailLevel: "minimal",
       reviewCheckMode: "required",
-      backfillEnabled: true,
       autonomy: { update_branch: "auto" },
       // The only delta from the #4744 test above: turns on slop evidence collection so `slopBand` is populated
       // this pass. "advisory" never blocks (only "block" mode does, at the configured threshold) -- this test
       // is exercising the quadrant label, not the slop gate.
       slopGateMode: "advisory",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "detected_contributors_only", publicAudienceMode: "gittensor_only", publicSignalLevel: "standard", publicSurface: "comment_and_label", checkRunMode: "off", checkRunDetailLevel: "minimal", backfillEnabled: true } });
     let postedBody = "";
     const calls = { comments: 0, gateChecks: 0 };
     let gateFinalized = false;
@@ -3273,17 +3160,11 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicAudienceMode: "gittensor_only",
-      publicSignalLevel: "standard",
-      publicSurface: "comment_and_label",
       autoLabelEnabled: false,
-      checkRunMode: "off",
-      checkRunDetailLevel: "minimal",
       reviewCheckMode: "required",
-      backfillEnabled: true,
       autonomy: { update_branch: "auto" },
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "detected_contributors_only", publicAudienceMode: "gittensor_only", publicSignalLevel: "standard", publicSurface: "comment_and_label", checkRunMode: "off", checkRunDetailLevel: "minimal", backfillEnabled: true } });
     let mergeableStateReads = 0;
     // No mockRejectedValueOnce here -- unlike the "renders the unified PR-review comment" test above, every call
     // succeeds identically, isolating the "both refreshes succeed" case this fix targets (a prior-call failure
@@ -3396,17 +3277,11 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicAudienceMode: "gittensor_only",
-      publicSignalLevel: "standard",
-      publicSurface: "comment_and_label",
       autoLabelEnabled: false,
-      checkRunMode: "off",
-      checkRunDetailLevel: "minimal",
       reviewCheckMode: "required",
-      backfillEnabled: true,
       autonomy: { update_branch: "auto" },
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "detected_contributors_only", publicAudienceMode: "gittensor_only", publicSignalLevel: "standard", publicSurface: "comment_and_label", checkRunMode: "off", checkRunDetailLevel: "minimal", backfillEnabled: true } });
     let postedBody = "";
     const liveCiSpy = vi.spyOn(backfillModule, "fetchLiveCiAggregatePreferGraphQl").mockResolvedValue({
       ciState: "passed",
@@ -3543,15 +3418,8 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicAudienceMode: "gittensor_only",
-      publicSignalLevel: "standard",
-      publicSurface: "comment_and_label",
       autoLabelEnabled: false,
-      checkRunMode: "off",
-      checkRunDetailLevel: "minimal",
       reviewCheckMode: "required",
-      backfillEnabled: true,
       autonomy: { update_branch: "auto" },
     });
     let postedBody = "";
@@ -3569,7 +3437,14 @@ describe("queue processors", () => {
       const url = input.toString();
       const method = init?.method ?? "GET";
       if (url === "https://raw.githubusercontent.com/JSONbored/gittensory/HEAD/.loopover.yml") {
-        return new Response("review:\n  visual:\n    enabled: false\n");
+        // Batch-A fields (commentMode/publicAudienceMode/publicSignalLevel/publicSurface/checkRunMode/
+        // checkRunDetailLevel/backfillEnabled) moved off the DB-backed upsertRepositorySettings call above and
+        // into this fetched .loopover.yml's `settings:` block -- the config-as-code migration path (#6442) --
+        // so this test's real yaml-fetch mechanism (not upsertRepoFocusManifest, which would poison the 6h
+        // manifest cache and skip this fetch entirely) still supplies them alongside review.visual.enabled.
+        return new Response(
+          "settings:\n  commentMode: detected_contributors_only\n  publicAudienceMode: gittensor_only\n  publicSignalLevel: standard\n  publicSurface: comment_and_label\n  checkRunMode: \"off\"\n  checkRunDetailLevel: minimal\n  backfillEnabled: true\nreview:\n  visual:\n    enabled: false\n",
+        );
       }
       if (url === "https://api.gittensor.io/miners") {
         return Response.json([
@@ -3685,15 +3560,8 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicAudienceMode: "gittensor_only",
-      publicSignalLevel: "standard",
-      publicSurface: "comment_and_label",
       autoLabelEnabled: false,
-      checkRunMode: "off",
-      checkRunDetailLevel: "minimal",
       reviewCheckMode: "required",
-      backfillEnabled: true,
       autonomy: { update_branch: "auto" },
     });
     let postedBody = "";
@@ -3760,7 +3628,7 @@ describe("queue processors", () => {
       if (url.includes("/users/oktofeesh1/repos")) return Response.json([{ language: "TypeScript" }]);
       // .loopover.yml opts into the deterministic changed-files summary — no AI involved.
       if (url === "https://raw.githubusercontent.com/JSONbored/gittensory/HEAD/.loopover.yml") {
-        return new Response("review:\n  changed_files_summary: true\n");
+        return new Response("settings:\n  commentMode: detected_contributors_only\n  publicAudienceMode: gittensor_only\n  publicSignalLevel: standard\n  publicSurface: comment_and_label\n  checkRunMode: \"off\"\n  checkRunDetailLevel: minimal\n  backfillEnabled: true\nreview:\n  changed_files_summary: true\n");
       }
       if (url.includes("/access_tokens")) {
         if (gateFinalized && !failedPostGateMint) {
@@ -3858,15 +3726,8 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicAudienceMode: "gittensor_only",
-      publicSignalLevel: "standard",
-      publicSurface: "comment_and_label",
       autoLabelEnabled: false,
-      checkRunMode: "off",
-      checkRunDetailLevel: "minimal",
       reviewCheckMode: "required",
-      backfillEnabled: true,
       autonomy: { update_branch: "auto" },
     });
     let postedBody = "";
@@ -3933,7 +3794,7 @@ describe("queue processors", () => {
       if (url.includes("/users/oktofeesh1/repos")) return Response.json([{ language: "TypeScript" }]);
       // .loopover.yml opts into the deterministic effort score — no AI involved.
       if (url === "https://raw.githubusercontent.com/JSONbored/gittensory/HEAD/.loopover.yml") {
-        return new Response("review:\n  effort_score: true\n");
+        return new Response("settings:\n  commentMode: detected_contributors_only\n  publicAudienceMode: gittensor_only\n  publicSignalLevel: standard\n  publicSurface: comment_and_label\n  checkRunMode: \"off\"\n  checkRunDetailLevel: minimal\n  backfillEnabled: true\nreview:\n  effort_score: true\n");
       }
       if (url.includes("/access_tokens")) {
         if (gateFinalized && !failedPostGateMint) {
@@ -4040,15 +3901,8 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicAudienceMode: "gittensor_only",
-      publicSignalLevel: "standard",
-      publicSurface: "comment_and_label",
       autoLabelEnabled: false,
-      checkRunMode: "off",
-      checkRunDetailLevel: "minimal",
       reviewCheckMode: "required",
-      backfillEnabled: true,
       autonomy: { update_branch: "auto" },
     });
     let postedBody = "";
@@ -4115,7 +3969,7 @@ describe("queue processors", () => {
       if (url.includes("/users/oktofeesh1/repos")) return Response.json([{ language: "TypeScript" }]);
       // .loopover.yml opts into the deterministic auto-merge summary — no AI involved.
       if (url === "https://raw.githubusercontent.com/JSONbored/gittensory/HEAD/.loopover.yml") {
-        return new Response("review:\n  auto_merge_summary: true\n");
+        return new Response("settings:\n  commentMode: detected_contributors_only\n  publicAudienceMode: gittensor_only\n  publicSignalLevel: standard\n  publicSurface: comment_and_label\n  checkRunMode: \"off\"\n  checkRunDetailLevel: minimal\n  backfillEnabled: true\nreview:\n  auto_merge_summary: true\n");
       }
       if (url.includes("/access_tokens")) {
         if (gateFinalized && !failedPostGateMint) {
@@ -4228,10 +4082,7 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "block",
       gatePack: "oss-anti-slop",
@@ -4250,7 +4101,7 @@ describe("queue processors", () => {
       if (url.includes("/branches/")) return Response.json({ protected: false, protection: { required_status_checks: { contexts: [] } } });
       // The repo's own review.tone opt-in (#2044) -- a maintainer voice brief, distinct from review.instructions.
       if (url === "https://raw.githubusercontent.com/JSONbored/gittensory/HEAD/.loopover.yml") {
-        return new Response("review:\n  tone: Keep findings terse and skip pleasantries\n");
+        return new Response("settings:\n  commentMode: all_prs\n  publicSurface: comment_only\n  checkRunMode: \"off\"\nreview:\n  tone: Keep findings terse and skip pleasantries\n");
       }
       // Real GitHub raw-content 404s for every other manifest candidate -- without this, Response.json({}) below would 200 the first candidate
       // tried and mask the review.tone config crafted above.
@@ -4309,10 +4160,7 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       // advisory (NOT block): block mode always reviews the full diff, ignoring exclude_paths/path_filters, so
       // only advisory mode exercises the filterReviewFilesForAi branch (src/queue/processors.ts).
@@ -4341,7 +4189,11 @@ describe("queue processors", () => {
       // The repo's own review.exclude_paths opt-in -- a NON-EMPTY glob (#review-exclude-paths), unlike every
       // existing fingerprint-only assertion of this field elsewhere in this file.
       if (url === "https://raw.githubusercontent.com/JSONbored/gittensory/HEAD/.loopover.yml") {
-        return new Response('review:\n  exclude_paths:\n    - "**/*.generated.ts"\n');
+        // Batch-A fields moved off upsertRepositorySettings above and into this fetched .loopover.yml's
+        // `settings:` block (config-as-code migration, #6442) so the real yaml-fetch path -- not
+        // upsertRepoFocusManifest, which would poison the 6h manifest cache and skip this fetch -- still
+        // supplies them alongside review.exclude_paths.
+        return new Response('settings:\n  commentMode: all_prs\n  publicSurface: comment_only\n  checkRunMode: "off"\nreview:\n  exclude_paths:\n    - "**/*.generated.ts"\n');
       }
       // Real GitHub raw-content 404s for every other manifest candidate -- without this, the generic Response.json({}) catch-all below would
       // otherwise 200 the FIRST candidate tried and mask the exclude_paths config crafted above.
@@ -4384,15 +4236,8 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicAudienceMode: "gittensor_only",
-      publicSignalLevel: "standard",
-      publicSurface: "comment_and_label",
       autoLabelEnabled: false,
-      checkRunMode: "off",
-      checkRunDetailLevel: "minimal",
       reviewCheckMode: "required",
-      backfillEnabled: true,
       autonomy: { update_branch: "auto" },
       linkedIssueGateMode: "block",
     });
@@ -4459,7 +4304,7 @@ describe("queue processors", () => {
       if (url.endsWith("/users/oktofeesh1")) return Response.json({ login: "oktofeesh1", public_repos: 2, followers: 1 });
       if (url.includes("/users/oktofeesh1/repos")) return Response.json([{ language: "TypeScript" }]);
       if (url === "https://raw.githubusercontent.com/JSONbored/gittensory/HEAD/.loopover.yml") {
-        return new Response("review:\n  max_findings:\n    blockers: 0\n");
+        return new Response("settings:\n  commentMode: detected_contributors_only\n  publicAudienceMode: gittensor_only\n  publicSignalLevel: standard\n  publicSurface: comment_and_label\n  checkRunMode: \"off\"\n  checkRunDetailLevel: minimal\n  backfillEnabled: true\nreview:\n  max_findings:\n    blockers: 0\n");
       }
       if (url.includes("/access_tokens")) {
         if (gateFinalized && !failedPostGateMint) {
@@ -4549,20 +4394,24 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicAudienceMode: "gittensor_only",
-      publicSignalLevel: "standard",
-      publicSurface: "comment_and_label",
       autoLabelEnabled: false,
-      checkRunMode: "off",
-      checkRunDetailLevel: "minimal",
       reviewCheckMode: "required",
-      backfillEnabled: true,
       autonomy: { update_branch: "auto" },
       qualityGateMode: "advisory",
       qualityGateMinScore: 100,
     });
-    await upsertRepoFocusManifest(env, "JSONbored/gittensory", opts.reviewMemoryManifest ? { review: { memory: true } } : {});
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", {
+      settings: {
+        commentMode: "detected_contributors_only",
+        publicAudienceMode: "gittensor_only",
+        publicSignalLevel: "standard",
+        publicSurface: "comment_and_label",
+        checkRunMode: "off",
+        checkRunDetailLevel: "minimal",
+        backfillEnabled: true,
+      },
+      ...(opts.reviewMemoryManifest ? { review: { memory: true } } : {}),
+    });
     let postedBody = "";
     let gateFinalized = false;
     let failedPostGateMint = false;
@@ -4793,7 +4642,8 @@ describe("queue processors", () => {
   it("swallows an estimateReviewEffort failure when persisting the public-stats minutes — the publish still completes", async () => {
     const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
-    await upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory", commentMode: "all_prs", publicSurface: "comment_only", autoLabelEnabled: false, checkRunMode: "off", reviewCheckMode: "required", aiReviewMode: "off", gatePack: "oss-anti-slop" });
+    await upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory", autoLabelEnabled: false, reviewCheckMode: "required", aiReviewMode: "off", gatePack: "oss-anti-slop" });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const estimateSpy = vi.spyOn(reviewEffortModule, "estimateReviewEffort").mockImplementationOnce(() => {
       throw new Error("estimator blew up");
     });
@@ -4876,10 +4726,7 @@ describe("queue processors", () => {
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "block",
       gatePack: "oss-anti-slop",
@@ -4892,7 +4739,7 @@ describe("queue processors", () => {
       if (url.includes("/access_tokens")) return Response.json({ token: "installation-token" });
       // .loopover.yml opts into inline comments AND finding categories together.
       if (url === "https://raw.githubusercontent.com/JSONbored/gittensory/HEAD/.loopover.yml") {
-        return new Response("review:\n  inline_comments: true\n  finding_categories: true\n");
+        return new Response("settings:\n  commentMode: all_prs\n  publicSurface: comment_only\n  checkRunMode: \"off\"\nreview:\n  inline_comments: true\n  finding_categories: true\n");
       }
       // Real GitHub raw-content 404s for every other manifest candidate -- without this, Response.json({}) below would 200 the first candidate
       // tried and mask the inline_comments/finding_categories config crafted above.
@@ -4951,7 +4798,8 @@ describe("queue processors", () => {
     });
     await persistRegistrySnapshot(env, normalizeRegistryPayload({ "JSONbored/gittensory": { emission_share: 0.01, issue_discovery_share: 0 } }, { kind: "raw-github", url: "https://example.test" }, "2026-05-23T00:00:00.000Z"));
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
-    await upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory", commentMode: "all_prs", publicSurface: "comment_only", autoLabelEnabled: false, checkRunMode: "off", reviewCheckMode: "required", aiReviewMode: "block", gatePack: "oss-anti-slop" });
+    await upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory", autoLabelEnabled: false, reviewCheckMode: "required", aiReviewMode: "block", gatePack: "oss-anti-slop" });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 77, title: "Held PR", state: "open", user: { login: "contributor" }, head: { sha: "a77" }, labels: [{ name: "manual-review" }], body: "Closes #1" });
     await upsertPullRequestDetailSyncState(env, { repoFullName: "JSONbored/gittensory", pullNumber: 77, status: "complete", reviewsSyncedAt: new Date().toISOString() });
     // A prior PUBLISHED review for this exact head — the freeze path reuses it (aiReview = frozenReview) instead of
@@ -5010,7 +4858,7 @@ describe("queue processors", () => {
       AI_DAILY_NEURON_BUDGET: "100000",
     });
     await upsertRepositoryFromGitHub(env, { name: "gittensory", full_name: "JSONbored/gittensory", private: false, owner: { login: "JSONbored" } }, 123);
-    await upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory", commentMode: "all_prs", publicSurface: "comment_only", autoLabelEnabled: false, checkRunMode: "off", reviewCheckMode: "required", aiReviewMode: "block", gatePack: "oss-anti-slop" });
+    await upsertRepositorySettings(env, { repoFullName: "JSONbored/gittensory", autoLabelEnabled: false, reviewCheckMode: "required", aiReviewMode: "block", gatePack: "oss-anti-slop" });
     let unifiedCommentBody = "";
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -5018,7 +4866,11 @@ describe("queue processors", () => {
       if (url.includes("/access_tokens")) return Response.json({ token: "installation-token" });
       if (url === "https://raw.githubusercontent.com/JSONbored/gittensory/HEAD/.loopover.yml") {
         // NOTE: the manifest key is camelCase `fixHandoff` (unlike snake-case `finding_categories`) — see focus-manifest parse.
-        return new Response("review:\n  inline_comments: true\n  fixHandoff: true\n");
+        // Batch-A fields moved off upsertRepositorySettings above and into this fetched .loopover.yml's
+        // `settings:` block (config-as-code migration, #6442) so the real yaml-fetch path -- not
+        // upsertRepoFocusManifest, which would poison the 6h manifest cache and skip this fetch -- still
+        // supplies them alongside review.fixHandoff.
+        return new Response('settings:\n  commentMode: all_prs\n  publicSurface: comment_only\n  checkRunMode: "off"\nreview:\n  inline_comments: true\n  fixHandoff: true\n');
       }
       // Real GitHub raw-content 404s for every other manifest candidate -- without this, Response.json({}) below would 200 the first candidate
       // tried and mask the inline_comments/fixHandoff config crafted above.
@@ -5073,16 +4925,10 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicAudienceMode: "gittensor_only",
-      publicSignalLevel: "standard",
-      publicSurface: "comment_and_label",
       autoLabelEnabled: false,
-      checkRunMode: "off",
-      checkRunDetailLevel: "minimal",
       reviewCheckMode: "required",
-      backfillEnabled: true,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "detected_contributors_only", publicAudienceMode: "gittensor_only", publicSignalLevel: "standard", publicSurface: "comment_and_label", checkRunMode: "off", checkRunDetailLevel: "minimal", backfillEnabled: true } });
     // Seed a FAILED check summary with a per-check WHY (codecov-style) so listCheckSummaries returns it and the
     // unified site populates failingDetails. (The PR row + headSha must match for the check to associate.)
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", {
@@ -5230,16 +5076,10 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicAudienceMode: "gittensor_only",
-      publicSignalLevel: "standard",
-      publicSurface: "comment_and_label",
       autoLabelEnabled: false,
-      checkRunMode: "off",
-      checkRunDetailLevel: "minimal",
       reviewCheckMode: "required",
-      backfillEnabled: true,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "detected_contributors_only", publicAudienceMode: "gittensor_only", publicSignalLevel: "standard", publicSurface: "comment_and_label", checkRunMode: "off", checkRunDetailLevel: "minimal", backfillEnabled: true } });
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", {
       number: 6,
       title: "Fix flaky retry test",
@@ -5378,16 +5218,10 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicAudienceMode: "gittensor_only",
-      publicSignalLevel: "standard",
-      publicSurface: "comment_and_label",
       autoLabelEnabled: false,
-      checkRunMode: "off",
-      checkRunDetailLevel: "minimal",
       reviewCheckMode: "required",
-      backfillEnabled: true,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "detected_contributors_only", publicAudienceMode: "gittensor_only", publicSignalLevel: "standard", publicSurface: "comment_and_label", checkRunMode: "off", checkRunDetailLevel: "minimal", backfillEnabled: true } });
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", {
       number: 7,
       title: "Bump lockfile",
@@ -5472,7 +5306,7 @@ describe("queue processors", () => {
   });
 
   it("skips bots and maintainer authors, and keeps explicitly enabled checks minimal", async () => {
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem(), LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
     await persistRegistrySnapshot(
       env,
       normalizeRegistryPayload(
@@ -5483,11 +5317,9 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "enabled",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "off", publicSurface: "off", checkRunMode: "enabled" } });
     const calls = { minerList: 0, checks: 0 };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -5555,7 +5387,7 @@ describe("queue processors", () => {
   });
 
   it("audits advisory context check permission failures without blocking webhook processing", async () => {
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem(), LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
     await persistRegistrySnapshot(
       env,
       normalizeRegistryPayload(
@@ -5566,11 +5398,9 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "enabled",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "off", publicSurface: "off", checkRunMode: "enabled" } });
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const url = input.toString();
       if (url === "https://api.gittensor.io/miners") return Response.json([]);
@@ -5608,7 +5438,7 @@ describe("queue processors", () => {
   });
 
   it("audits advisory context check publish failures AND retries the job (GitHub 5xx is transient, GITTENSORY-5)", async () => {
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem(), LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
     await persistRegistrySnapshot(
       env,
       normalizeRegistryPayload(
@@ -5619,11 +5449,9 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "enabled",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "off", publicSurface: "off", checkRunMode: "enabled" } });
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const url = input.toString();
       if (url === "https://api.gittensor.io/miners") return Response.json([]);
@@ -5670,10 +5498,7 @@ describe("queue processors", () => {
     const env = createTestEnv();
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "off",
     });
     const calls = { fetch: 0, repoWideReads: 0 };
     const originalDb = env.DB;
@@ -5691,7 +5516,7 @@ describe("queue processors", () => {
       return new Response("unexpected fetch", { status: 500 });
     });
 
-    await upsertRepoFocusManifest(env, "JSONbored/gittensory", {});
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "off", publicSurface: "off", checkRunMode: "off" } });
     await processJob(env, {
       type: "github-webhook",
       deliveryId: "surface-off-skip",
@@ -5722,7 +5547,7 @@ describe("queue processors", () => {
   });
 
   it("records public comment failure without blocking the context check", async () => {
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem(), LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
     await persistRegistrySnapshot(
       env,
       normalizeRegistryPayload(
@@ -5733,13 +5558,10 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicSurface: "comment_only",
       autoLabelEnabled: true,
       createMissingLabel: true,
-      checkRunMode: "enabled",
-      checkRunDetailLevel: "standard",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "detected_contributors_only", publicSurface: "comment_only", checkRunMode: "enabled", checkRunDetailLevel: "standard" } });
     const calls = { checks: 0 };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -5806,10 +5628,8 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "detected_contributors_only", publicSurface: "comment_only", checkRunMode: "off" } });
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
       const method = init?.method ?? "GET";
@@ -5865,10 +5685,8 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "detected_contributors_only", publicSurface: "comment_only", checkRunMode: "off" } });
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
       const method = init?.method ?? "GET";
@@ -5925,10 +5743,8 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "detected_contributors_only", publicSurface: "comment_only", checkRunMode: "off" } });
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
       const method = init?.method ?? "GET";
@@ -6011,12 +5827,10 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicSurface: "label_only",
       autoLabelEnabled: true,
       createMissingLabel: false,
-      checkRunMode: "off",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "detected_contributors_only", publicSurface: "label_only", checkRunMode: "off" } });
     const calls = { comments: 0, labels: 0, minerList: 0 };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -6095,12 +5909,10 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicSurface: "label_only",
       autoLabelEnabled: true,
       createMissingLabel: false,
-      checkRunMode: "off",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "detected_contributors_only", publicSurface: "label_only", checkRunMode: "off" } });
     const calls = { comments: 0, labels: 0 };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -6160,7 +5972,7 @@ describe("queue processors", () => {
   });
 
   it("keeps GitHub-history-only contributors quiet through not_found cache hits and expiry", async () => {
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem(), LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", {
       number: 9,
       title: "Historical merged work",
@@ -6173,12 +5985,9 @@ describe("queue processors", () => {
     });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicAudienceMode: "gittensor_only",
-      publicSurface: "comment_and_label",
       autoLabelEnabled: true,
-      checkRunMode: "off",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicAudienceMode: "gittensor_only", publicSurface: "comment_and_label", checkRunMode: "off" } });
     const calls = { minerList: 0, publicOutput: 0 };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const url = input.toString();
@@ -6239,12 +6048,9 @@ describe("queue processors", () => {
     const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicAudienceMode: "oss_maintainer",
-      publicSurface: "comment_only",
       autoLabelEnabled: false,
-      checkRunMode: "off",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "detected_contributors_only", publicAudienceMode: "oss_maintainer", publicSurface: "comment_only", checkRunMode: "off" } });
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", {
       number: 3,
       title: "Cached historical work",
@@ -6316,7 +6122,6 @@ describe("queue processors", () => {
     const env = createTestEnv();
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      publicAudienceMode: "gittensor_only",
     });
     const payload = {
       action: "opened",
@@ -6339,7 +6144,7 @@ describe("queue processors", () => {
       return new Response("gittensor unavailable", { status: 503 });
     });
 
-    await upsertRepoFocusManifest(env, "JSONbored/gittensory", {});
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { publicAudienceMode: "gittensor_only" } });
     await expect(processJob(env, { type: "github-webhook", deliveryId: "miner-unavailable", eventName: "pull_request", payload })).resolves.toBeUndefined();
     await expect(
       processJob(env, {
@@ -6375,15 +6180,13 @@ describe("queue processors", () => {
   });
 
   it("recovers confirmed miners after the unavailable cache window expires", async () => {
-    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem(), LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo" });
+    const env = createTestEnv({ GITHUB_APP_PRIVATE_KEY: await generatePrivateKeyPem() });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "detected_contributors_only",
-      publicSurface: "label_only",
       autoLabelEnabled: true,
       createMissingLabel: false,
-      checkRunMode: "off",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "detected_contributors_only", publicSurface: "label_only", checkRunMode: "off" } });
     let officialSource: "down" | "confirmed" = "down";
     const calls = { minerList: 0, labels: 0 };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -6459,12 +6262,11 @@ describe("queue processors", () => {
     );
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      publicSurface: "comment_and_label",
       autoLabelEnabled: true,
       createMissingLabel: false,
-      checkRunMode: "off",
       agentPaused: true,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { publicSurface: "comment_and_label", checkRunMode: "off" } });
     const calls = { labels: 0, comments: 0 };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();

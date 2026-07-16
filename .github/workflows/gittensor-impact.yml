@@ -39,7 +39,7 @@ jobs:
           node-version: 22.23.1
 
       - name: Render impact card
-        run: node scripts/gittensor-impact-card.mjs JSONbored/gittensory gittensor-impact-dark.svg
+        run: node scripts/gittensor-impact-card.mjs JSONbored/loopover gittensor-impact-dark.svg
 
       - name: Publish to gittensor-impact-assets
         env:

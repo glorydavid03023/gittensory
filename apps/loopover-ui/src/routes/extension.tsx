@@ -202,7 +202,7 @@ function OverlayDemo() {
           <span className="size-2 rounded-full bg-[oklch(0.8_0.15_85)]/60" />
           <span className="size-2 rounded-full bg-success/60" />
           <span className="ml-2 truncate font-mono text-token-2xs">
-            github.com/jsonbored/gittensory/pull/1218
+            github.com/jsonbored/loopover/pull/1218
           </span>
         </div>
         <div className="grid gap-3 p-3 sm:grid-cols-[1.4fr_1fr]">

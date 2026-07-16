@@ -3,6 +3,8 @@
 // LOOPOVER_MINER_* / MINER_* env var, repo-relative file path, and `loopover-miner <subcommand>`
 // it documents still exists under packages/loopover-miner/**. A rename or move that leaves the doc
 // stale then fails CI with a message naming the exact stale claim, instead of misleading operators.
+// Wired into CI via `npm run test:miner-deployment-docs-audit` (scripts/check-miner-deployment-docs.mjs)
+// and the live unit suite in test/unit/miner-deployment-docs-audit.test.ts (#6158).
 
 /** The miner's own env-var namespace: LOOPOVER_MINER_* and the shorter MINER_* aliases it reads. */
 const ENV_VAR_PATTERN = /\b(?:LOOPOVER_MINER|MINER)_[A-Z0-9_]+\b/g;

@@ -244,6 +244,7 @@ function AgentRuns() {
         isLoading={canUseLiveRuns && liveRuns.status === "loading"}
         isError={canUseLiveRuns && liveRuns.status === "error" && liveRuns.error !== "disabled"}
         errorKind={liveRuns.status === "error" ? liveRuns.errorKind : undefined}
+        errorLabel="Agent runs"
         errorDescription={liveRuns.status === "error" ? liveRuns.error : undefined}
         onRetry={liveRuns.reload}
         onRefresh={liveRuns.reload}

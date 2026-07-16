@@ -1015,7 +1015,6 @@ describe("merged-PR incremental re-index trigger (webhook)", () => {
     const env = createTestEnv({
       LOOPOVER_REVIEW_RAG: over.rag ?? "true",
       LOOPOVER_REVIEW_REPOS: over.repos ?? "JSONbored/gittensory",
-      LOOPOVER_DRIFT_ISSUE_REPO: "unrelated-org/unrelated-repo",
       JOBS: { async send(message: import("../../src/types").JobMessage) { sent.push(message); } } as unknown as Queue,
     });
     await registerRepo(env, "JSONbored/gittensory");

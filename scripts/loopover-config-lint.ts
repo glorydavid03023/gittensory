@@ -1,6 +1,6 @@
 #!/usr/bin/env tsx
 // Wires up the previously-unwired src/selfhost/config-lint.ts validator (#2906): a self-hoster (or the
-// maintainer, dogfooding on JSONbored/gittensory) can now actually run it against a real .loopover.yml or
+// maintainer, dogfooding on JSONbored/loopover) can now actually run it against a real .loopover.yml or
 // private-config file and get actionable feedback, instead of the validator existing only in its own test suite.
 import { lstatSync, readFileSync } from "node:fs";
 import { pathToFileURL } from "node:url";

@@ -1212,13 +1212,11 @@ describe("queue processors", () => {
     // auto-acted. The ONLY thing that must stop it is the draft guard in maybeRunAgentMaintenance.
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "off",
       autoLabelEnabled: false,
-      checkRunMode: "off",
       reviewCheckMode: "required",
       autonomy: { merge: "auto", approve: "auto", close: "auto" },
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "off", publicSurface: "off", checkRunMode: "off" } });
     vi.stubGlobal("fetch", async (input: RequestInfo | URL) => {
       const url = input.toString();
       if (url === "https://api.gittensor.io/miners") return Response.json([]);
@@ -1272,9 +1270,6 @@ describe("queue processors", () => {
     });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
@@ -1283,7 +1278,7 @@ describe("queue processors", () => {
       contributorBlacklist: [{ login: "baduser", reason: "plagiarism" }],
     });
     // The label is configurable via `.loopover.yml` (default "slop"); set a custom one to prove it's not hardcoded.
-    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { blacklistLabel: "spam" } }, "repo_file");
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off", blacklistLabel: "spam" } }, "repo_file");
     const seen = { closed: false, labels: [] as string[], comments: [] as string[] };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -1345,15 +1340,12 @@ describe("queue processors", () => {
     });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
     });
     // Scoped to the `visual` label only, config-as-code, nothing hardcoded — mirrors the blacklistLabel test above.
-    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { screenshotTableGate: { enabled: true, whenLabels: ["visual"] } } }, "repo_file");
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off", screenshotTableGate: { enabled: true, whenLabels: ["visual"] } } }, "repo_file");
     const seen = { closed: false, labels: [] as string[], comments: [] as string[] };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -1414,12 +1406,9 @@ describe("queue processors", () => {
     });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
     });
-    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { screenshotTableGate: { enabled: true, whenLabels: ["visual"], action: "advisory" } } }, "repo_file");
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off", screenshotTableGate: { enabled: true, whenLabels: ["visual"], action: "advisory" } } }, "repo_file");
     const seen = { closed: false, comments: [] as string[] };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -1476,13 +1465,10 @@ describe("queue processors", () => {
     });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       autonomy: { close: "auto", merge: "auto" },
     });
-    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { screenshotTableGate: { enabled: true, whenLabels: ["visual"] } } }, "repo_file");
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off", screenshotTableGate: { enabled: true, whenLabels: ["visual"] } } }, "repo_file");
     const seen = { closed: false };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -1546,13 +1532,10 @@ describe("queue processors", () => {
     });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       autonomy: { close: "auto", merge: "auto", label: "auto" },
     });
-    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { screenshotTableGate: { enabled: true, whenLabels: ["visual"] } } }, "repo_file");
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off", screenshotTableGate: { enabled: true, whenLabels: ["visual"] } } }, "repo_file");
     // The SAME body/evidence is reused verbatim across both pushes -- the contributor never re-edits it.
     const unchangedBody =
       "Changed the button color.\n\n| Before | After |\n| --- | --- |\n| ![before](https://x/before.png) | ![after](https://x/after.png) |\n\nCloses #1";
@@ -1648,13 +1631,10 @@ describe("queue processors", () => {
     });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       autonomy: { close: "auto", label: "auto" },
     });
-    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { screenshotTableGate: { enabled: true, whenLabels: ["visual"] } } }, "repo_file");
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off", screenshotTableGate: { enabled: true, whenLabels: ["visual"] } } }, "repo_file");
     // Simulates an earlier `synchronize` pass whose real (Browser Rendering) capture already succeeded at
     // this head SHA and persisted the marker -- see the test doc comment above.
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", {
@@ -1753,13 +1733,10 @@ describe("queue processors", () => {
     });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       autonomy: { close: "auto", label: "auto" },
     });
-    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { screenshotTableGate: { enabled: true, whenLabels: ["visual"] } } }, "repo_file");
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off", screenshotTableGate: { enabled: true, whenLabels: ["visual"] } } }, "repo_file");
     const seen = { closed: false };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -1874,10 +1851,11 @@ describe("queue processors", () => {
         installation: { id: 123, account: { login: "owner", id: 1, type: "Organization" }, target_type: "Organization", repository_selection: "selected", permissions: { contents: "write", pull_requests: "write", issues: "write" }, events: [] },
       });
       await upsertRepositoryFromGitHub(env, { name: "repo", full_name: "owner/repo", private: false, owner: { login: "owner" } }, 123);
-      await upsertRepositorySettings(env, { repoFullName: "owner/repo", autonomy: { merge: "auto", review_state_label: "auto" }, aiReviewMode: "off", gatePack: "oss-anti-slop", reviewCheckMode: "required", checkRunMode: "off", commentMode: "off", publicSurface: "off" });
-      if (opts.premergeContentRecheck !== undefined) {
-        await upsertRepoFocusManifest(env, "owner/repo", { gate: { premergeContentRecheck: opts.premergeContentRecheck } });
-      }
+      await upsertRepositorySettings(env, { repoFullName: "owner/repo", autonomy: { merge: "auto", review_state_label: "auto" }, aiReviewMode: "off", gatePack: "oss-anti-slop", reviewCheckMode: "required" });
+      await upsertRepoFocusManifest(env, "owner/repo", {
+        settings: { checkRunMode: "off", commentMode: "off", publicSurface: "off" },
+        ...(opts.premergeContentRecheck !== undefined ? { gate: { premergeContentRecheck: opts.premergeContentRecheck } } : {}),
+      });
       await upsertPullRequestFromGitHub(env, "owner/repo", { number: prNumber, title: "Migration PR", state: "open", user: { login: "contributor" }, head: { sha: "sha1" }, base: { ref: "main" }, labels: [], body: "" });
     }
 
@@ -1953,8 +1931,8 @@ describe("queue processors", () => {
       });
       // No default_branch on the repo record AND no base.ref on the PR record — baseRef resolves to undefined.
       await upsertRepositoryFromGitHub(env, { name: "repo", full_name: "owner/repo", private: false, owner: { login: "owner" } }, 123);
-      await upsertRepositorySettings(env, { repoFullName: "owner/repo", autonomy: { merge: "auto", review_state_label: "auto" }, aiReviewMode: "off", gatePack: "oss-anti-slop", reviewCheckMode: "required", checkRunMode: "off", commentMode: "off", publicSurface: "off" });
-      await upsertRepoFocusManifest(env, "owner/repo", { gate: { premergeContentRecheck: true } });
+      await upsertRepositorySettings(env, { repoFullName: "owner/repo", autonomy: { merge: "auto", review_state_label: "auto" }, aiReviewMode: "off", gatePack: "oss-anti-slop", reviewCheckMode: "required" });
+      await upsertRepoFocusManifest(env, "owner/repo", { settings: { checkRunMode: "off", commentMode: "off", publicSurface: "off" }, gate: { premergeContentRecheck: true } });
       await upsertPullRequestFromGitHub(env, "owner/repo", { number: 65, title: "No base ref", state: "open", user: { login: "contributor" }, head: { sha: "sha1" }, labels: [], body: "" });
       const seen = { closed: false, merged: false, labels: [] as string[], comments: [] as string[], treeCalls: 0 };
       stubMigrationRecheckFetch(65, { filename: "migrations/0099_a.sql", status: "added" }, [{ type: "blob", path: "migrations/0099_b.sql" }], seen);
@@ -2325,10 +2303,15 @@ describe("queue processors", () => {
         installation: { id: 123, account: { login: "owner", id: 1, type: "Organization" }, target_type: "Organization", repository_selection: "selected", permissions: { contents: "write", pull_requests: "write", issues: "write" }, events: [] },
       });
       await upsertRepositoryFromGitHub(env, { name: "repo", full_name: "owner/repo", private: false, owner: { login: "owner" } }, 123);
-      await upsertRepositorySettings(env, { repoFullName: "owner/repo", autonomy: opts.autonomy ?? { merge: "auto", review_state_label: "auto" }, aiReviewMode: "off", gatePack: "oss-anti-slop", reviewCheckMode: "required", checkRunMode: "off", commentMode: "off", publicSurface: "off" });
-      if (opts.guardrailMode !== undefined) {
-        await upsertRepoFocusManifest(env, "owner/repo", { settings: { unlinkedIssueGuardrail: { mode: opts.guardrailMode } } });
-      }
+      await upsertRepositorySettings(env, { repoFullName: "owner/repo", autonomy: opts.autonomy ?? { merge: "auto", review_state_label: "auto" }, aiReviewMode: "off", gatePack: "oss-anti-slop", reviewCheckMode: "required" });
+      await upsertRepoFocusManifest(env, "owner/repo", {
+        settings: {
+          checkRunMode: "off",
+          commentMode: "off",
+          publicSurface: "off",
+          ...(opts.guardrailMode !== undefined ? { unlinkedIssueGuardrail: { mode: opts.guardrailMode } } : {}),
+        },
+      });
       await upsertIssueFromGitHub(env, "owner/repo", { number: 5, title: "webhook retry duplicate bug report", state: "open", user: { login: "someone" }, labels: [], body: "retries duplicate events under heavy load, needs a dedup key" });
       await upsertPullRequestFromGitHub(env, "owner/repo", { number: prNumber, title: "fix webhook retry duplicate bug", state: "open", user: { login: "contributor" }, head: { sha: "sha1" }, base: { ref: "main" }, labels: [], body: opts.prBody ?? "" });
     }
@@ -2452,11 +2435,9 @@ describe("queue processors", () => {
         aiReviewMode: "off",
         gatePack: "oss-anti-slop",
         reviewCheckMode: "required",
-        checkRunMode: "off",
-        commentMode: "off",
-        publicSurface: "off",
         ...(opts.requireFreshRebaseWindowMinutes !== undefined ? { requireFreshRebaseWindowMinutes: opts.requireFreshRebaseWindowMinutes } : {}),
       });
+      await upsertRepoFocusManifest(env, "owner/repo", { settings: { checkRunMode: "off", commentMode: "off", publicSurface: "off" } });
       await upsertPullRequestFromGitHub(env, "owner/repo", { number: prNumber, title: "Fresh rebase PR", state: "open", user: { login: "contributor" }, head: { sha: "sha1" }, base: { ref: "main" }, labels: [], body: "" });
     }
 
@@ -2607,16 +2588,13 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 54, title: "Farmer PR two", state: "open", user: { login: "farmer99" }, head: { sha: "f54" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 2,
       // The label is the configurable `.loopover.yml` value below — nothing is hard-coded.
     });
-    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { contributorCapLabel: "spam-cap" } }, "repo_file");
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off", contributorCapLabel: "spam-cap" } }, "repo_file");
     const seen = { closed: false, labels: [] as string[], comments: [] as string[] };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -2677,15 +2655,13 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 54, title: "Sentry fix two", state: "open", user: { login: "sentry[bot]" }, head: { sha: "f54" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 2,
       autoCloseExemptLogins: ["sentry[bot]"],
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false, labels: [] as string[], comments: [] as string[] };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -2763,15 +2739,13 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 54, title: "Farmer PR two", state: "open", user: { login: "farmer99" }, head: { sha: "f54" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 2,
       contributorCapCancelCi: true,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false, cancelledIds: [] as number[], listedStatuses: [] as string[] };
     vi.stubGlobal("fetch", stubContributorCapCiCancelFetch(seen, { in_progress: [101], queued: [102] }));
 
@@ -2804,15 +2778,13 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 54, title: "Farmer PR two", state: "open", user: { login: "farmer99" }, head: { sha: "f54" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 2,
       contributorCapCancelCi: true,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false, cancelledIds: [] as number[], listedStatuses: [] as string[] };
     vi.stubGlobal("fetch", stubContributorCapCiCancelFetch(seen, { in_progress: [103] }));
     const originalRecordAuditEvent = repositoriesModule.recordAuditEvent;
@@ -2848,15 +2820,13 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 54, title: "Farmer PR two", state: "open", user: { login: "farmer99" }, head: { sha: "f54" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 2,
       contributorCapCancelCi: true,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false, cancelledIds: [] as number[], listedStatuses: [] as string[] };
     vi.stubGlobal(
       "fetch",
@@ -2895,15 +2865,13 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 54, title: "Farmer PR two", state: "open", user: { login: "farmer99" }, head: { sha: "f54" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 2,
       // contributorCapCancelCi intentionally omitted — off by default, no CONTRIBUTOR_CAP_CANCEL_CI_DEFAULT set.
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false, cancelledIds: [] as number[], listedStatuses: [] as string[] };
     vi.stubGlobal("fetch", stubContributorCapCiCancelFetch(seen, { in_progress: [201] }));
 
@@ -2934,15 +2902,13 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 54, title: "Farmer PR two", state: "open", user: { login: "farmer99" }, head: { sha: "f54" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 2,
       contributorCapCancelCi: true,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false, cancelledIds: [] as number[], listedStatuses: [] as string[] };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -2982,15 +2948,13 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 54, title: "Farmer PR two", state: "open", user: { login: "farmer99" }, head: { sha: "f54" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 2,
       contributorCapCancelCi: true,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false, cancelledIds: [] as number[], listedStatuses: [] as string[] };
     vi.stubGlobal(
       "fetch",
@@ -3026,15 +2990,13 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 54, title: "Farmer PR two", state: "open", user: { login: "farmer99" }, head: { sha: "f54" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 2,
       // contributorCapCancelCi intentionally omitted (null) -- falls back to the env var default above.
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false, cancelledIds: [] as number[], listedStatuses: [] as string[] };
     vi.stubGlobal("fetch", stubContributorCapCiCancelFetch(seen, { in_progress: [301] }));
 
@@ -3064,15 +3026,13 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 54, title: "Farmer PR two", state: "open", user: { login: "farmer99" }, head: { sha: "f54" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 2,
       contributorCapCancelCi: false,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false, cancelledIds: [] as number[], listedStatuses: [] as string[] };
     vi.stubGlobal("fetch", stubContributorCapCiCancelFetch(seen, { in_progress: [401] }));
 
@@ -3105,14 +3065,12 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 101, title: "Spammer PR one", state: "open", user: { login: "spammer" }, head: { sha: "s101" }, labels: [], body: "x" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 1,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false, comments: [] as string[] };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -3163,13 +3121,11 @@ describe("queue processors", () => {
     }
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "off",
-      publicSurface: "off",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 100, // above SIBLING_COUNT + 1 — this test only cares about concurrency, not closing.
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "off", publicSurface: "off", checkRunMode: "off" } });
     let inFlight = 0;
     let maxInFlight = 0;
     const siblingCheckPattern = new RegExp(`/pulls/(?:${Array.from({ length: SIBLING_COUNT }, (_, i) => i + 1).join("|")})$`);
@@ -3225,13 +3181,11 @@ describe("queue processors", () => {
     // No contributorOpenPrCap set — the default, disabled state.
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -3280,14 +3234,12 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 53, title: "Farmer PR one", state: "open", user: { login: "farmer99" }, head: { sha: "f53" }, labels: [], body: "x" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 2,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -3348,14 +3300,12 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/repo-b", { number: 10, title: "Farmer PR on repo-b", state: "open", user: { login: "farmer99" }, head: { sha: "fb10" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/repo-a",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       // Deliberately NO contributorOpenPrCap here — only the install-wide env cap should catch this.
     });
+    await upsertRepoFocusManifest(env, "JSONbored/repo-a", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false, labels: [] as string[], comments: [] as string[] };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -3413,13 +3363,11 @@ describe("queue processors", () => {
     }
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/repo-a",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
     });
+    await upsertRepoFocusManifest(env, "JSONbored/repo-a", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false, livePullReads: [] as number[] };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -3472,13 +3420,11 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/repo-b", { number: 10, title: "Farmer PR on repo-b", state: "open", user: { login: "farmer99" }, head: { sha: "fb10" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/repo-a",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
     });
+    await upsertRepoFocusManifest(env, "JSONbored/repo-a", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -3530,14 +3476,12 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/repo-b", { number: 10, title: "Farmer PR on repo-b", state: "open", user: { login: "farmer99" }, head: { sha: "fb10" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/repo-a",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       autoCloseExemptLogins: ["farmer99"],
     });
+    await upsertRepoFocusManifest(env, "JSONbored/repo-a", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -3591,13 +3535,11 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/repo-b", { number: 10, title: "Farmer PR on repo-b", state: "open", user: { login: "farmer99" }, head: { sha: "fb10" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/repo-a",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
     });
+    await upsertRepoFocusManifest(env, "JSONbored/repo-a", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -3653,13 +3595,11 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/repo-b", { number: 11, title: "Farmer 2nd PR on repo-b", state: "open", user: { login: "farmer99" }, head: { sha: "fb11" }, labels: [], body: "z" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/repo-a",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
     });
+    await upsertRepoFocusManifest(env, "JSONbored/repo-a", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -3711,14 +3651,12 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 54, title: "Owner PR two", state: "open", user: { login: "JSONbored" }, head: { sha: "o54" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 2,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -3767,14 +3705,12 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 54, title: "Farmer PR two", state: "open", user: { login: "farmer99" }, head: { sha: "f54" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 2,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const seen = { closed: false };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -3850,13 +3786,13 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 61, title: "Newbie PR two", state: "open", user: { login: "newbie" }, head: { sha: "s61" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
       reviewCheckMode: "required",
       // #label-scoping: the cap label/close rides on `close`; the new-account label rides on `review_state_label`.
       autonomy: { close: "auto", review_state_label: "auto" },
       contributorOpenPrCap: 4,
       accountAgeThresholdDays: 30,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs" } });
     const seen = { labels: [] as string[], closed: false };
     // Account created 2 days ago — well under the 30-day threshold.
     vi.stubGlobal("fetch", stubAccountAgeFetch(62, new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), seen));
@@ -3887,12 +3823,12 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 66, title: "Stale newbie PR", state: "open", user: { login: "newbie" }, head: { sha: "s66" }, labels: [], body: "x" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
       reviewCheckMode: "required",
       autonomy: { close: "auto", review_state_label: "auto" },
       contributorOpenPrCap: 2,
       accountAgeThresholdDays: 30,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs" } });
     const seen = { labels: [] as string[], closed: false };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -3941,12 +3877,12 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 64, title: "Vet PR two", state: "open", user: { login: "newbie" }, head: { sha: "s64" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
       reviewCheckMode: "required",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 4,
       accountAgeThresholdDays: 30,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs" } });
     const seen = { labels: [] as string[], closed: false };
     // Account created 2 years ago — well over the 30-day threshold.
     vi.stubGlobal("fetch", stubAccountAgeFetch(65, new Date(Date.now() - 730 * 24 * 60 * 60 * 1000).toISOString(), seen));
@@ -3976,10 +3912,10 @@ describe("queue processors", () => {
     });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
       reviewCheckMode: "required",
       accountAgeThresholdDays: 30,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs" } });
     const seen = { labels: [] as string[], closed: false };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -4022,11 +3958,11 @@ describe("queue processors", () => {
     });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
       reviewCheckMode: "required",
       autonomy: { close: "auto", label: "auto" },
       // accountAgeThresholdDays intentionally omitted — off by default.
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs" } });
     const seen = { labels: [] as string[], accountAgeUsersFetched: false };
     vi.stubGlobal("fetch", async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = input.toString();
@@ -4077,12 +4013,12 @@ describe("queue processors", () => {
     });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
       reviewCheckMode: "required",
       autonomy: { close: "auto", review_state_label: "auto" },
       accountAgeThresholdDays: 30,
       newAccountLabel: "custom-new-account-label",
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs" } });
     const seen = { labels: [] as string[], closed: false };
     vi.stubGlobal("fetch", stubAccountAgeFetch(68, new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), seen));
 
@@ -4110,11 +4046,11 @@ describe("queue processors", () => {
     });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
       reviewCheckMode: "required",
       // autonomy intentionally omitted — deny-by-default ("observe" for every action class, including "review_state_label").
       accountAgeThresholdDays: 30,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs" } });
     const seen = { labels: [] as string[], closed: false };
     vi.stubGlobal("fetch", stubAccountAgeFetch(69, new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), seen));
 
@@ -4504,14 +4440,12 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 54, title: "Farmer PR zero", state: "open", user: { login: "farmer99" }, head: { sha: "f54" }, labels: [], body: "w" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 2,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const closedNumbers = new Set<number>();
     const fanned: import("../../src/types").JobMessage[] = [];
     const realSend = env.JOBS.send.bind(env.JOBS);
@@ -4591,14 +4525,12 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 56, title: "Farmer PR two (already over cap)", state: "open", user: { login: "farmer99" }, head: { sha: "f56" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 2,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const fanned: import("../../src/types").JobMessage[] = [];
     const realSend = env.JOBS.send.bind(env.JOBS);
     env.JOBS.send = (async (message: import("../../src/types").JobMessage, options?: QueueSendOptions) => {
@@ -4648,14 +4580,12 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 56, title: "Farmer PR two (already over cap)", state: "open", user: { login: "farmer99" }, head: { sha: "f56" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 2,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     env.JOBS.send = (async () => {
       throw new Error("queue send boom");
     }) as typeof env.JOBS.send;
@@ -4709,14 +4639,12 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 56, title: "Farmer PR two (already over cap)", state: "open", user: { login: "farmer99" }, head: { sha: "f56" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 2,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const fanned: import("../../src/types").JobMessage[] = [];
     const realSend = env.JOBS.send.bind(env.JOBS);
     env.JOBS.send = (async (message: import("../../src/types").JobMessage, options?: QueueSendOptions) => {
@@ -4789,14 +4717,12 @@ describe("queue processors", () => {
     await upsertPullRequestFromGitHub(env, "JSONbored/gittensory", { number: 56, title: "Farmer PR two (already over cap)", state: "open", user: { login: "farmer99" }, head: { sha: "f56" }, labels: [], body: "y" });
     await upsertRepositorySettings(env, {
       repoFullName: "JSONbored/gittensory",
-      commentMode: "all_prs",
-      publicSurface: "comment_only",
-      checkRunMode: "off",
       reviewCheckMode: "required",
       aiReviewMode: "advisory",
       autonomy: { close: "auto", label: "auto" },
       contributorOpenPrCap: 2,
     });
+    await upsertRepoFocusManifest(env, "JSONbored/gittensory", { settings: { commentMode: "all_prs", publicSurface: "comment_only", checkRunMode: "off" } });
     const realGetPullRequest = repositoriesModule.getPullRequest;
     vi.spyOn(repositoriesModule, "getPullRequest").mockImplementation(async (spyEnv, fullName, number) => {
       if (number === 56) return null; // simulate PR56 not being found locally at wake time

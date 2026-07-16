@@ -126,7 +126,7 @@ function RoadmapPage() {
           waits until the GitHub project scope is available.
         </p>
         <a
-          href="https://github.com/JSONbored/gittensory/issues/127"
+          href="https://github.com/JSONbored/loopover/issues/127"
           target="_blank"
           rel="noreferrer"
           className="mt-4 inline-flex rounded-token border-hairline px-2.5 py-1 font-mono text-token-2xs text-muted-foreground transition-colors duration-150 hover:border-strong hover:text-mint focus-ring"
@@ -182,7 +182,7 @@ function RoadmapPage() {
                     </div>
                     <p className="mt-1.5 text-token-xs text-muted-foreground">{item.description}</p>
                     <a
-                      href={`https://github.com/JSONbored/gittensory/issues/${item.issue}`}
+                      href={`https://github.com/JSONbored/loopover/issues/${item.issue}`}
                       target="_blank"
                       rel="noreferrer"
                       className="mt-3 inline-flex items-center gap-1 rounded-token text-token-xs font-medium text-muted-foreground transition-colors duration-150 hover:text-mint hover:underline focus-ring"

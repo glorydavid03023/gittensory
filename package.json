@@ -1,5 +1,5 @@
 {
-  "name": "gittensory",
+  "name": "loopover",
   "version": "0.1.0",
   "private": true,
   "packageManager": "npm@10.9.8",
@@ -35,11 +35,13 @@
     "build:miner": "npm --workspace @loopover/engine run build && npm --workspace @loopover/miner run build",
     "test:mcp-pack": "node scripts/check-mcp-package.mjs",
     "test:miner-pack": "node scripts/check-miner-package.mjs",
+    "test:miner-deployment-docs-audit": "node scripts/check-miner-deployment-docs.mjs",
     "rees:install": "npm ci --prefix review-enrichment --prefer-offline --no-audit --no-fund",
     "rees:test": "npm run rees:install && npm --prefix review-enrichment test",
     "rees:metadata": "npm --prefix review-enrichment run metadata",
     "rees:metadata:check": "npm --prefix review-enrichment run metadata:check",
     "rees:validate-sourcemaps": "npm --prefix review-enrichment run validate:sourcemaps",
+    "rees:coverage": "node scripts/rees-coverage.mjs",
     "db:migrations:check": "tsx scripts/check-migrations.mjs",
     "db:schema-drift:check": "tsx scripts/check-schema-drift.mjs",
     "actionlint": "node scripts/actionlint.mjs",
@@ -91,7 +93,7 @@
     "test:smoke:observability:metrics": "node scripts/smoke-observability-metrics.mjs",
     "test:smoke:browser:install": "playwright install chromium",
     "test:smoke:browser": "node scripts/smoke-ui-browser.mjs",
-    "test:ci": "git diff --check && npm run actionlint && npm run db:migrations:check && npm run db:schema-drift:check && npm run selfhost:env-reference:check && npm run miner:env-reference:check && npm run selfhost:validate-observability && npm run cf-typegen:check && npm run build --workspace @loopover/engine && npm run typecheck && npm run test:coverage && npm run test:engine-parity && npm run test:live-gate-parity && npm run test:driver-parity && npm run test --workspace @loopover/engine && npm run test:workers && npm run build:mcp && npm run test:mcp-pack && npm run build:miner && npm run test:miner-pack && npm run rees:test && npm run ui:openapi:check && npm run ui:openapi:settings-parity && npm run ui:version-audit && npm run docs:drift-check && npm run manifest:drift-check && npm run engine-parity:drift-check && npm run command-reference:check && npm run ui:lint && npm run ui:typecheck && npm run ui:test && npm run ui:build",
+    "test:ci": "git diff --check && npm run actionlint && npm run db:migrations:check && npm run db:schema-drift:check && npm run selfhost:env-reference:check && npm run miner:env-reference:check && npm run selfhost:validate-observability && npm run cf-typegen:check && npm run build --workspace @loopover/engine && npm run typecheck && npm run test:coverage && npm run test:engine-parity && npm run test:live-gate-parity && npm run test:driver-parity && npm run test --workspace @loopover/engine && npm run test:workers && npm run build:mcp && npm run test:mcp-pack && npm run build:miner && npm run test:miner-pack && npm run test:miner-deployment-docs-audit && npm run rees:test && npm run ui:openapi:check && npm run ui:openapi:settings-parity && npm run ui:version-audit && npm run docs:drift-check && npm run manifest:drift-check && npm run engine-parity:drift-check && npm run command-reference:check && npm run ui:lint && npm run ui:typecheck && npm run ui:test && npm run ui:build",
     "test:release": "npm run test:ci && npm run changelog:check",
     "test:release:mcp": "npm run test:ci",
     "test:watch": "vitest",
@@ -168,12 +170,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/JSONbored/gittensory.git"
+    "url": "git+https://github.com/JSONbored/loopover.git"
   },
   "keywords": [],
   "author": "",
   "bugs": {
-    "url": "https://github.com/JSONbored/gittensory/issues"
+    "url": "https://github.com/JSONbored/loopover/issues"
   },
-  "homepage": "https://github.com/JSONbored/gittensory#readme"
+  "homepage": "https://github.com/JSONbored/loopover#readme"
 }

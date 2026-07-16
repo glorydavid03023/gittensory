@@ -374,7 +374,7 @@ export function PlaygroundPanel({ defaultTool = "preflight-branch" }: { defaultT
               {tool === "public-safe-comment" ? (
                 <div className="mt-4 rounded-token border-hairline bg-background/40 p-4 text-token-sm">
                   <div className="mb-2 font-mono text-token-2xs uppercase tracking-wider text-muted-foreground">
-                    gittensory · sticky comment
+                    loopover · sticky comment
                   </div>
                   <pre className="whitespace-pre-wrap font-mono text-token-xs text-foreground/90">
                     {formatPublicPreview(result)}
@@ -577,7 +577,7 @@ function formatOutputForClipboard(tool: Tool, result: unknown): string {
       "Maintainers can run `@loopover blockers` for non-public context.",
     ].join("\n");
   }
-  const header = `// gittensory · ${tool} · preview`;
+  const header = `// loopover · ${tool} · preview`;
   const body = JSON.stringify(result, null, 2);
   // Normalize line endings and ensure trailing newline for terminal pastes.
   return `${header}\n${body}\n`.replace(/\r\n/g, "\n");

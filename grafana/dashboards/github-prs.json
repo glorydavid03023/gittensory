@@ -22,7 +22,7 @@
           "queryText": "SELECT 1 AS ord, repo AS \"__text\", 'repo:' || repo AS \"__value\" FROM (SELECT DISTINCT repo FROM review_targets ORDER BY repo)",
           "rawQueryText": "SELECT 1 AS ord, repo AS \"__text\", 'repo:' || repo AS \"__value\" FROM (SELECT DISTINCT repo FROM review_targets ORDER BY repo)"
         },
-        "current": { "text": "JSONbored/gittensory", "value": "repo:JSONbored/gittensory" },
+        "current": { "text": "JSONbored/loopover", "value": "repo:JSONbored/loopover" },
         "includeAll": false,
         "multi": false,
         "refresh": 2,
