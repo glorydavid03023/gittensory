@@ -146,6 +146,13 @@ export {
   type TrackRecordSummaryReadResult,
   type TrackRecordTenure,
 } from "./track-record-summary.js";
+export {
+  TRUST_SIGNAL_LEVELS,
+  TRUST_SIGNAL_SOURCES,
+  type TrustSignal,
+  type TrustSignalLevel,
+  type TrustSignalSource,
+} from "./trust-signal.js";
 export * from "./governor/rate-limit.js";
 export * from "./governor/budget-cap.js";
 export * from "./governor/self-plagiarism.js";
