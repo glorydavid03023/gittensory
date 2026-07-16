@@ -1,25 +1,24 @@
 // Persistent chat-rail shell (#6513). A pure structural shell mounted once in __root.tsx so it survives
 // client-side route navigation: on wide viewports it docks as a ~380px panel beside the routed content; below
 // the ui-kit `useIsMobile` breakpoint it collapses to the same `Sheet`-based slide-over `sidebar.tsx` uses for
-// its own mobile mode (rather than a second, bespoke mobile-collapse mechanism). This ships with static
-// placeholder content only — no composer, message list, streaming, or backend call; those layer on later.
+// its own mobile mode (rather than a second, bespoke mobile-collapse mechanism). The rail's content slot is
+// filled by the `ChatConversation` integration (#6518) — composer + message list + streaming renderer wired to
+// the read-only `POST /api/chat` backend — rendered by both the docked panel and the mobile sheet.
 import * as React from "react";
 
 import { Button } from "@loopover/ui-kit/components/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@loopover/ui-kit/components/sheet";
 import { useIsMobile } from "@loopover/ui-kit/hooks/use-mobile";
 
+import { ChatConversation } from "@/components/chat/conversation";
+
 const RAIL_WIDTH_PX = 380;
 const RAIL_PANEL_ID = "chat-rail-panel";
 
-/** The rail's inner content. Static placeholder for this shell issue — the real composer/message-list land later. */
+/** The rail's inner content slot, filled by the read-only chat conversation integration (#6518). Rendered by
+ *  both the mobile slide-over sheet and the desktop docked panel so a single wiring covers both presentations. */
 function RailBody() {
-  return (
-    <div className="flex h-full flex-col gap-2 p-4">
-      <p className="font-mono text-token-xs uppercase tracking-[0.2em] text-primary">Chat</p>
-      <p className="text-token-sm text-muted-foreground">Ask about this miner&rsquo;s local state. Coming soon.</p>
-    </div>
-  );
+  return <ChatConversation />;
 }
 
 export interface ChatRailProps {
