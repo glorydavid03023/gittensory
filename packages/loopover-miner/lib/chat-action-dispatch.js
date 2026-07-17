@@ -71,7 +71,17 @@ export async function dispatchChatAction(request, options = {}) {
     return { ok: false, status: "invalid_params", action };
   }
 
-  const result = await registered.handler(request);
+  let result;
+  try {
+    result = await registered.handler(request);
+  } catch {
+    // A handler that throws fails closed with the module's typed result shape (#6989), consistent with the
+    // paramsValidator catch above. The thrown value is deliberately NOT echoed back: a handler wraps
+    // arbitrary action work (e.g. a network call), so its error could carry external detail -- the sibling
+    // fail-closed paths (sentry.js, pretooluse-hook.js) likewise swallow rather than surface it. A distinct
+    // "handler_error" status still lets a caller tell an execution failure from a params-validation failure.
+    return { ok: false, status: "handler_error", action };
+  }
   return { ok: true, status: "dispatched", action, result };
 }
 
