@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type KeyboardEvent } from "react";
 import { Check, Copy } from "lucide-react";
 import { toast } from "sonner";
 
+import { useLocalStorage } from "@/lib/use-local-storage";
 import { cn } from "@/lib/utils";
 
 import { AnimatedTerminal } from "@/components/site/animated-terminal";
@@ -442,6 +443,8 @@ loopover-mcp analyze-branch --login your-login --json`}
 
 type ClientTabId = "miners" | "codex" | "claude" | "cursor" | "remote";
 
+const INSTALL_TAB_STORAGE_KEY = "gt:install-tab";
+
 const CLIENT_TABS: Array<{
   id: ClientTabId;
   label: string;
@@ -511,10 +514,11 @@ args = ["-y", "@loopover/mcp@latest", "--stdio"]`,
 ];
 
 export function ClientSetupTabs() {
-  const [active, setActive] = useState<ClientTabId>(() => {
-    if (typeof window === "undefined") return "miners";
-    return (window.localStorage.getItem("gt:install-tab") as ClientTabId) ?? "miners";
-  });
+  // Deferred read via useLocalStorage (#6814): a useState initializer runs during the FIRST render, but the
+  // server render has no `window` and always yields "miners", so a returning visitor with a saved tab
+  // hydrated into markup the server never produced. The hook reads on mount instead and persists on write,
+  // which also replaces the write-back effect this component used to run.
+  const [active, setActive] = useLocalStorage<ClientTabId>(INSTALL_TAB_STORAGE_KEY, "miners");
   const [copied, setCopied] = useState(false);
   const current = CLIENT_TABS.find((t) => t.id === active) ?? CLIENT_TABS[0];
   const tabRefs = useRef<Map<string, HTMLButtonElement>>(new Map());
@@ -542,14 +546,6 @@ export function ClientSetupTabs() {
       focusTab(CLIENT_TABS[CLIENT_TABS.length - 1]!.id);
     }
   };
-
-  useEffect(() => {
-    try {
-      window.localStorage.setItem("gt:install-tab", active);
-    } catch {
-      /* noop */
-    }
-  }, [active]);
 
   const onCopy = async () => {
     try {
