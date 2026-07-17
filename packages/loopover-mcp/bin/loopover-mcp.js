@@ -1088,6 +1088,12 @@ const STDIO_TOOL_DESCRIPTORS = [
       "Return the repo's cached maintainer burden forecast (projected review load, queue-growth risk, and stale-PR signals) with a freshness marker, from the private LoopOver API.",
   },
   {
+    name: "loopover_get_repo_outcome_patterns",
+    category: "maintainer",
+    description:
+      "Return cached or freshly-computed per-repo accepted/rejected PR outcome patterns: what maintainers actually merge or close, separated from maintainer-lane activity, with a freshness marker and explicit evidence-completeness.",
+  },
+  {
     name: "loopover_preview_local_pr_score",
     category: "branch",
     description: "Inspect local diff metadata and request a private LoopOver scoring preview. No source contents are uploaded.",
@@ -1891,6 +1897,20 @@ registerStdioTool(
       burdenForecast: intelligence?.burdenForecast ?? null,
       burdenForecastFreshness: intelligence?.burdenForecastFreshness ?? null,
     });
+  },
+);
+
+// #6734: CLI stdio mirror of loopover_get_repo_outcome_patterns — thin GET proxy of the already-public
+// /v1/repos/:owner/:repo/outcome-patterns route (same ownerRepoShape + apiGet pattern as maintainer_noise).
+registerStdioTool(
+  "loopover_get_repo_outcome_patterns",
+  {
+    description: stdioToolDescription("loopover_get_repo_outcome_patterns"),
+    inputSchema: ownerRepoShape,
+  },
+  async ({ owner, repo }) => {
+    const prefix = `/v1/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
+    return toolResult("LoopOver repo outcome patterns.", await apiGet(`${prefix}/outcome-patterns`));
   },
 );
 

@@ -475,6 +475,26 @@ export async function startFixtureServer(
       );
       return;
     }
+    if (request.url === "/v1/repos/owner/repo/outcome-patterns" && request.method === "GET") {
+      response.end(
+        JSON.stringify({
+          status: "ready",
+          source: "snapshot",
+          repoFullName: "owner/repo",
+          generatedAt: "2026-06-01T00:00:00.000Z",
+          ageSeconds: 120,
+          freshness: "fresh",
+          patterns: {
+            repoFullName: "owner/repo",
+            generatedAt: "2026-06-01T00:00:00.000Z",
+            accepted: { count: 3, themes: ["tests"] },
+            rejected: { count: 1, themes: ["scope"] },
+            evidenceCompleteness: "partial",
+          },
+        }),
+      );
+      return;
+    }
     if (request.url?.startsWith("/v1/repos/owner/repo/agent/pending-actions/") && request.method === "POST") {
       const accepted = request.url.endsWith("/accept");
       response.end(JSON.stringify(accepted ? { status: "accepted", executionOutcome: "completed" } : { status: "rejected" }));
