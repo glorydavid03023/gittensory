@@ -220,6 +220,57 @@ jobs:
           tarball=$(find "$RUNNER_TEMP/loopover-mcp-package" -maxdepth 1 -type f -name "*.tgz" -print -quit)
           npx -y npm@11.15.0 publish "$tarball" --access public --provenance
 
+  # apps/loopover-ui/src/lib/mcp-package.ts's MCP_PACKAGE_KNOWN_LATEST_VERSION (ui:version-audit,
+  # already CI-enforced) tracks the latest PUBLISHED release -- its own header comment explains why
+  # it can't be pre-synced in the Release PR itself: it must never claim a version ahead of npm, so
+  # the earliest correct moment to update it is right here, after publish actually succeeds. Left as
+  # a manual "did anyone notice CI red and run the sync command" step before, this blocked completely
+  # unrelated PRs' CI with zero connection to what they actually changed (confirmed live: an
+  # auto-generated release PR for a DIFFERENT package went red on this exact gap, twice in one
+  # session). Opens a small PR instead of pushing straight to main: this repo's branch protection
+  # requires PRs (required_pull_request_reviews), so a direct push would just be rejected.
+  sync-ui-version-copy:
+    runs-on: ubuntu-latest
+    needs: [validate, publish]
+    if: ${{ !cancelled() && needs.publish.result == 'success' }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+        with:
+          persist-credentials: false
+      - name: Setup Node
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
+        with:
+          node-version: 24.18.0
+      - name: Sync and open a PR if the known-latest copy is now stale
+        env:
+          # A real collaborator token, not github.token -- mirrors mcp-release-please.yml's own
+          # rationale: PRs/commits pushed as github-actions[bot] repeatedly get re-flagged as needing
+          # manual workflow-run approval, which a real account sidesteps.
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          node scripts/check-ui-mcp-version-copy.mjs --write
+          if git diff --quiet apps/loopover-ui/src/lib/mcp-package.ts; then
+            echo "Already in sync, nothing to do."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          branch="chore/sync-mcp-version-copy-${{ needs.validate.outputs.version }}"
+          git checkout -B "$branch"
+          git add apps/loopover-ui/src/lib/mcp-package.ts
+          git commit -m "chore(ui): sync MCP_PACKAGE_KNOWN_LATEST_VERSION with npm dist-tags.latest"
+          git remote set-url origin "https://github.com/${GITHUB_REPOSITORY}.git"
+          gh auth setup-git
+          git push origin "HEAD:$branch"
+          gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" \
+            --title "chore(ui): sync MCP_PACKAGE_KNOWN_LATEST_VERSION with npm dist-tags.latest" \
+            --body "Automated: @loopover/mcp v${{ needs.validate.outputs.version }} just published to npm; keeps apps/loopover-ui/src/lib/mcp-package.ts's known-latest-version copy in sync (ui:version-audit)."
+
   github-release:
     runs-on: ubuntu-latest
     needs: [validate, publish]
