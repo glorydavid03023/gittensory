@@ -9,6 +9,10 @@ import type { LocalManifestLoadResult } from "../selfhost/private-config";
 export const REPO_FOCUS_MANIFEST_SIGNAL = "repo-focus-manifest";
 export const REPO_PUBLIC_FOCUS_MANIFEST_SIGNAL = "repo-public-focus-manifest";
 export const REPO_FOCUS_MANIFEST_MAX_AGE_MS = 6 * 60 * 60 * 1000;
+// Per-request ceiling for each raw-content candidate fetch (#7071), matching the bounded-fetch convention in
+// src/review/** (e.g. alerts.ts's AbortSignal.timeout(10_000)) so a slow raw.githubusercontent.com response
+// can't stall manifest resolution on the cold-cache path.
+const MANIFEST_FETCH_TIMEOUT_MS = 10_000;
 export const REPO_FOCUS_MANIFEST_MAX_CONCURRENT_LOADS = 4;
 
 /**
@@ -101,7 +105,10 @@ export async function fetchRepoFocusManifestFile(repoFullName: string): Promise<
   for (const path of MANIFEST_FILE_CANDIDATES) {
     const url = `https://raw.githubusercontent.com/${encodeURIComponent(owner)}/${encodeURIComponent(name)}/HEAD/${path}`;
     try {
-      const response = await fetch(url, { headers: { Accept: "application/json", "User-Agent": "loopover" } });
+      const response = await fetch(url, {
+        headers: { Accept: "application/json", "User-Agent": "loopover" },
+        signal: AbortSignal.timeout(MANIFEST_FETCH_TIMEOUT_MS),
+      });
       if (response.ok) {
         const text = await readBoundedResponseText(response);
         if (text !== null) return text;

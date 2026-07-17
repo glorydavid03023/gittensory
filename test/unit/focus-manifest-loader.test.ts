@@ -302,6 +302,19 @@ describe("focus-manifest loader", () => {
     expect(fetchSpy).toHaveBeenCalledTimes(1); // first candidate in MANIFEST_FILE_CANDIDATES is a 200, no fallback needed
   });
 
+  it("bounds each candidate fetch with an AbortSignal timeout (#7071)", async () => {
+    // A slow raw.githubusercontent.com response can't stall manifest resolution: every candidate fetch must
+    // carry a time bound, matching the bounded-fetch convention elsewhere in src/review/**.
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => new Response("not found", { status: 404 }));
+    await fetchRepoFocusManifestFile("owner/repo");
+    expect(fetchSpy).toHaveBeenCalled();
+    for (const call of fetchSpy.mock.calls) {
+      expect((call[1] as RequestInit | undefined)?.signal).toBeInstanceOf(AbortSignal);
+    }
+  });
+
   it("does not read public manifest responses when Content-Length is too large", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
       const stringUrl = String(url);
