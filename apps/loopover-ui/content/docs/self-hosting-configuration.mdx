@@ -216,7 +216,7 @@ Tune `MAINTENANCE_ADMISSION_MAX_LIVE_PENDING` (default `5`), `MAINTENANCE_ADMISS
 
 ## Tracing and telemetry env
 
-`OTEL_EXPORTER_OTLP_ENDPOINT` overrides the OpenTelemetry collector target only if you're routing to an external collector instead of the bundled one (default `http://otel-collector:4318` under the `observability` profile). `OTEL_SERVICE_NAME` (default `gittensory-selfhost`) is the service name traces and metrics are tagged with — set a distinct value per instance if you run more than one and want to tell them apart in Grafana/Tempo. `OTEL_TRACES_SAMPLER` (default `parentbased_traceidratio`) picks the sampling strategy for app job/provider traces; pair it with `OTEL_TRACES_SAMPLER_ARG` (for example `0.05` to sample 5% of root traces).
+`OTEL_EXPORTER_OTLP_ENDPOINT` overrides the OpenTelemetry collector target only if you're routing to an external collector instead of the bundled one (default `http://otel-collector:4318` under the `observability` profile). `OTEL_SERVICE_NAME` (default `loopover-selfhost`) is the service name traces and metrics are tagged with — set a distinct value per instance if you run more than one and want to tell them apart in Grafana/Tempo. `OTEL_TRACES_SAMPLER` (default `parentbased_traceidratio`) picks the sampling strategy for app job/provider traces; pair it with `OTEL_TRACES_SAMPLER_ARG` (for example `0.05` to sample 5% of root traces).
 
 ## Generated env reference
 

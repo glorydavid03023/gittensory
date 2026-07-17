@@ -10,6 +10,10 @@ const SELF_HOSTING_OPS_DOC = join(
   process.cwd(),
   "apps/loopover-ui/content/docs/self-hosting-operations.mdx",
 );
+const SELF_HOSTING_CONFIGURATION_DOC = join(
+  process.cwd(),
+  "apps/loopover-ui/content/docs/self-hosting-configuration.mdx",
+);
 const TERRAFORM_MAIN = join(process.cwd(), "packages/loopover-miner/terraform/main.tf");
 const CAPABILITY_AUDIT_DOC = join(process.cwd(), "src/review/repo-agnostic-capability-audit.md");
 
@@ -18,6 +22,25 @@ describe("self-host ops docs rename residue (#5937)", () => {
     const doc = readFileSync(SELF_HOSTING_OPS_DOC, "utf8");
     expect(doc).not.toContain("loopover-docker-safe-prune");
     expect(doc).toContain("loopover-docker-prune");
+  });
+
+  it("documents the real loopover-selfhost-{environment}-{loop} cron monitor slug, not the pre-rename prefix", () => {
+    // resolveSentryMonitorSlug (src/selfhost/sentry.ts) has emitted "loopover-selfhost-..." slugs since the
+    // Sentry monitor-naming rebrand; this doc paragraph was left describing the pre-rename "gittensory-selfhost-..."
+    // pattern. Unlike the SENTRY_RELEASE default (scripts/deploy-selfhost-prebuilt.sh, deliberately still
+    // "gittensory-selfhost@..." per test/unit/selfhost-sentry-release.test.ts), the monitor slug has no such
+    // pinned exception -- it's a plain doc/code mismatch.
+    const doc = readFileSync(SELF_HOSTING_OPS_DOC, "utf8");
+    expect(doc).not.toContain("gittensory-selfhost-{environment}-{loop}");
+    expect(doc).toContain("loopover-selfhost-{environment}-{loop}");
+  });
+
+  it("documents the real loopover-selfhost OTEL_SERVICE_NAME default, not the pre-rename value", () => {
+    // src/selfhost/otel.ts falls back to "loopover-selfhost" when OTEL_SERVICE_NAME is unset; this doc line
+    // still described the pre-rename default.
+    const doc = readFileSync(SELF_HOSTING_CONFIGURATION_DOC, "utf8");
+    expect(doc).not.toContain("`OTEL_SERVICE_NAME` (default `gittensory-selfhost`)");
+    expect(doc).toContain("`OTEL_SERVICE_NAME` (default `loopover-selfhost`)");
   });
 
   it("points the terraform module's header comment at the real env filename, not .gittensory-miner.env", () => {
