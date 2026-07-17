@@ -7,6 +7,10 @@ const toolbarBadgeApi = globalThis.__loopoverMinerToolbarBadge;
 const PING_MESSAGE = "loopover-miner:ping";
 const ISSUE_CONTEXT_MESSAGE = "loopover-miner:issue-context";
 const SYNC_RANKED_CANDIDATES_MESSAGE = "loopover-miner:sync-ranked-candidates";
+// Short: this is a same-machine localhost call, not a round-trip to a remote server -- a stalled connection
+// (miner-ui running but unresponsive) should fail fast and let the next 10-minute alarm retry, following the
+// timeout pattern established in review-enrichment/src/external-fetch.ts.
+const RANKED_CANDIDATES_FETCH_TIMEOUT_MS = 3000;
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (!message || typeof message.type !== "string") return false;
@@ -108,7 +112,9 @@ async function loadMinerUiUrl() {
 async function syncRankedCandidatesFromMinerUi() {
   const minerUiUrl = await loadMinerUiUrl();
   try {
-    const response = await fetch(`${minerUiUrl}/api/ranked-candidates`);
+    const response = await fetch(`${minerUiUrl}/api/ranked-candidates`, {
+      signal: AbortSignal.timeout(RANKED_CANDIDATES_FETCH_TIMEOUT_MS),
+    });
     if (!response.ok) {
       return { ok: false, error: `miner UI responded ${response.status}`, minerUiUrl };
     }

@@ -120,6 +120,34 @@ describe("background service worker", () => {
     expect(failed).toMatchObject({ ok: false, error: "connection refused" });
   });
 
+  it("REGRESSION (#7007): bounds the miner-ui fetch with a 3s AbortSignal timeout", async () => {
+    const timeoutSpy = vi.spyOn(AbortSignal, "timeout");
+    const { backgroundInternals } = await loadExtensionModules({
+      fetchImpl: jsonFetch(200, { candidates: [] }),
+    });
+    await backgroundInternals.syncRankedCandidatesFromMinerUi();
+    expect(timeoutSpy).toHaveBeenCalledWith(3000);
+    timeoutSpy.mockRestore();
+  });
+
+  it("REGRESSION (#7007): a stalled miner-ui connection times out instead of hanging the sync alarm forever", async () => {
+    // Mirrors what a real fetch does under an aborted signal: the promise never resolves on its own, it only
+    // rejects once the signal fires -- so this proves the timeout actually bounds a genuinely-hung connection,
+    // not just a fast-failing one.
+    const hangingFetch = (async (_url: string, init?: RequestInit) =>
+      new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () => reject(new DOMException("The operation was aborted.", "TimeoutError")));
+      })) as typeof fetch;
+    const { backgroundInternals } = await loadExtensionModules({ fetchImpl: hangingFetch });
+
+    const startedAt = Date.now();
+    const result = await backgroundInternals.syncRankedCandidatesFromMinerUi();
+    const elapsedMs = Date.now() - startedAt;
+
+    expect(result.ok).toBe(false);
+    expect(elapsedMs).toBeLessThan(4000); // bounded well under what an unbounded hang would take
+  }, 10_000);
+
   it("falls back to the default miner UI URL when sync storage is empty or malformed", async () => {
     const empty = await loadExtensionModules({ minerUiUrl: "" });
     expect(await empty.backgroundInternals.loadMinerUiUrl()).toBe(
