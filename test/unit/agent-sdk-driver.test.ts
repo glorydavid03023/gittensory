@@ -88,19 +88,28 @@ describe("createAgentSdkCodingAgentDriver", () => {
   });
 
   it("enumerates tracked and untracked worktree changes with git", async () => {
-    // Real subprocess spawns (init, 2x config, add, commit, plus the driver's own diff enumeration) --
-    // legitimately more wall-clock latency than the default 15s test timeout reliably covers under
-    // concurrent CI shard/system load (observed timing out under heavy parallel contention with no logic
-    // failure; passes in well under 1s in isolation). An explicit timeout says so instead of relying on
-    // ambient headroom.
+    // Real subprocess spawns (init, add, commit, plus the driver's own diff enumeration) -- legitimately
+    // more wall-clock latency than the default 15s test timeout reliably covers under concurrent CI
+    // shard/system load (passes in well under 1s in isolation). Commit identity goes through
+    // GIT_AUTHOR_*/GIT_COMMITTER_* env vars on the commit call instead of two separate `git config`
+    // subprocess spawns, cutting setup from 5 sequential git invocations to 3 -- but each remaining spawn
+    // still waits on real OS process-scheduling under load, which a smaller loop-body trim can reduce but
+    // not eliminate. Reproduced under simulated contention (16 CPU-bound processes oversubscribing a
+    // 12-core machine): clean single-attempt runs ranged ~0.3-20s, with one run exceeding 30s outright.
+    // 60s covers the observed range with headroom instead of relying on ambient timing.
     const dir = await mkdtemp(join(tmpdir(), "gittensory-agent-sdk-"));
+    const commitEnv = {
+      ...process.env,
+      GIT_AUTHOR_NAME: "Test User",
+      GIT_AUTHOR_EMAIL: "test@example.invalid",
+      GIT_COMMITTER_NAME: "Test User",
+      GIT_COMMITTER_EMAIL: "test@example.invalid",
+    };
     try {
       await execFileAsync("git", ["init"], { cwd: dir });
-      await execFileAsync("git", ["config", "user.email", "test@example.invalid"], { cwd: dir });
-      await execFileAsync("git", ["config", "user.name", "Test User"], { cwd: dir });
       await writeFile(join(dir, "tracked.ts"), "export const value = 1;\n");
       await execFileAsync("git", ["add", "tracked.ts"], { cwd: dir });
-      await execFileAsync("git", ["commit", "-m", "init"], { cwd: dir });
+      await execFileAsync("git", ["commit", "-m", "init"], { cwd: dir, env: commitEnv });
 
       const driver = createAgentSdkCodingAgentDriver({
         query: queryYielding([
@@ -119,7 +128,7 @@ describe("createAgentSdkCodingAgentDriver", () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
-  }, 30000);
+  }, 60000);
 
   it("derives changed files from the worktree after untracked mutating tools", async () => {
     const driver = driverWith({
