@@ -72,8 +72,8 @@ describe("registry normalization", () => {
   it("parses per-repo time-decay overrides from the registry scoring.time_decay block (#703)", () => {
     const snapshot = normalizeRegistryPayload(
       {
-        // JSONbored/gittensory's real master_repositories.json shape: a partial override (no steepness).
-        "JSONbored/gittensory": {
+        // JSONbored/loopover's real master_repositories.json shape: a partial override (no steepness).
+        "JSONbored/loopover": {
           emission_share: 0.01,
           scoring: { pr_lookback_days: 45, time_decay: { grace_period_hours: 24, sigmoid_midpoint_days: 10, min_multiplier: 0.05 } },
         },
@@ -86,7 +86,7 @@ describe("registry normalization", () => {
       "2026-05-22T00:00:00.000Z",
     );
     const byName = Object.fromEntries(snapshot.repositories.map((r) => [r.repo, r]));
-    expect(byName["JSONbored/gittensory"]!.timeDecay).toEqual({
+    expect(byName["JSONbored/loopover"]!.timeDecay).toEqual({
       gracePeriodHours: 24,
       sigmoidMidpointDays: 10,
       sigmoidSteepness: null, // absent → falls back to the global default at resolve time

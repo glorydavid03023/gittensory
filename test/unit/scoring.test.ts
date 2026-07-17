@@ -1880,7 +1880,7 @@ NOVELTY_BONUS_SCALAR = 3
       const c = DEFAULT_SCORING_CONSTANTS;
       // No overrides → all snapshot defaults.
       expect(resolveTimeDecay(c, null)).toEqual({ gracePeriodHours: 12, sigmoidMidpointDays: 10, sigmoidSteepness: 0.4, minMultiplier: 0.05 });
-      // Partial override (JSONbored/gittensory's real config: grace 24, midpoint 10, min 0.05, no steepness)
+      // Partial override (JSONbored/loopover's real config: grace 24, midpoint 10, min 0.05, no steepness)
       // → overridden fields apply, the absent steepness falls back to the default.
       expect(resolveTimeDecay(c, { gracePeriodHours: 24, sigmoidMidpointDays: 10, minMultiplier: 0.05 })).toEqual({
         gracePeriodHours: 24,
@@ -1938,7 +1938,7 @@ NOVELTY_BONUS_SCALAR = 3
 
     it("applies each live repo's resolved curve in the preview (per-repo, not global)", () => {
       const input: ScorePreviewInput = { repoFullName: repo.fullName, sourceTokenScore: 58, totalTokenScore: 600, sourceLines: 60, openPrCount: 0, credibility: 1, applyTimeDecay: true, prAgeHours: 18 };
-      // Repo with a 24h grace override (like JSONbored/gittensory) → an 18h-old PR is still fresh.
+      // Repo with a 24h grace override (like JSONbored/loopover) → an 18h-old PR is still fresh.
       const repo24: RepositoryRecord = { ...repo, registryConfig: { ...repo.registryConfig!, timeDecay: { gracePeriodHours: 24 } } };
       expect(buildScorePreview({ repo: repo24, snapshot, input }).scoreEstimate.timeDecayMultiplier).toBe(1);
       // Same PR on a repo using the default 12h grace → past grace, so it decays.
