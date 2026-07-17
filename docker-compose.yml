@@ -415,7 +415,7 @@ services:
   #                 capabilities: [gpu]
   # A device reservation only takes effect on container CREATION -- `docker compose restart ollama` reuses
   # the existing container's already-baked-in config and will NOT pick it up, even after adding the file to
-  # COMPOSE_FILE. Confirmed in production (#gittensory-4327): the override existed for days while the
+  # COMPOSE_FILE. Confirmed in production (#4327): the override existed for days while the
   # running container's `docker inspect --format '{{json .HostConfig.DeviceRequests}}'` stayed `null`, and
   # `ollama ps` kept reporting 100% CPU. Use `docker compose up -d --force-recreate ollama` (or any change
   # that forces a recreate) after adding or editing a device reservation, then re-check `ollama ps` for

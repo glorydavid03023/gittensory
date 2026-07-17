@@ -39,7 +39,7 @@ scrape_configs:
             values: ["com.docker.compose.project=${COMPOSE_PROJECT_NAME}"]
 
     relabel_configs:
-      # Compose service name -> `service` label (e.g. gittensory, prometheus, loki).
+      # Compose service name -> `service` label (e.g. loopover, prometheus, loki).
       - source_labels: ["__meta_docker_container_label_com_docker_compose_service"]
         target_label: "service"
       # Compose project -> `compose_project` label.
@@ -57,7 +57,7 @@ scrape_configs:
         replacement: "docker"
 
     pipeline_stages:
-      # gittensory logs are JSON lines; every line has an "event" field, and only
+      # loopover logs are JSON lines; every line has an "event" field, and only
       # error/warn lines set "level". Non-JSON lines (other images) fall through
       # untouched because json.expressions on a non-JSON line yields empty values.
       - json:

@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import enginePkg from "../../packages/loopover-engine/package.json";
 
-// The gittensory-engine package is a packaging-only scaffold (no runtime logic yet — the barrel export is
+// The loopover-engine package is a packaging-only scaffold (no runtime logic yet — the barrel export is
 // intentionally empty until later issues extract deterministic modules into it). These tests pin the published
 // package contract so the skeleton stays correct and installable as extraction lands.
-describe("gittensory-engine package scaffold", () => {
+describe("loopover-engine package scaffold", () => {
   it("declares the published package identity", () => {
     expect(enginePkg.name).toBe("@loopover/engine");
     expect(enginePkg.version).toMatch(/^\d+\.\d+\.\d+$/);

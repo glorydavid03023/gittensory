@@ -1,4 +1,4 @@
-# Grafana Loki — monolithic / single-binary config for gittensory self-host.
+# Grafana Loki — monolithic / single-binary config for loopover self-host.
 # Verified against Loki v3.7.x (latest stable, June 2026): TSDB store + schema v13,
 # filesystem object store (no S3), compactor-driven retention, structured metadata on.
 #
