@@ -50,7 +50,7 @@ assume it keeps happening, don't assume today's backlog is clean.
 
 **Target: keep this repo's own contributor-available count (unassigned, no `maintainer-only`, carries a `gittensor:*` label) at 50-100+, AT ALL TIMES, independently of metagraphed's count** — this is a steady-state floor to maintain continuously, not a one-time catch-up, and NOT a combined/shared pool across the two repos; each repo needs its own 50-100+ on its own goals. Compute it fresh: `gh issue list --state open --limit 1000 --json number,labels,assignees` and filter.
 
-**If the count is meaningfully under floor, keep sourcing issues until it clears (or a pass genuinely turns up no more real, non-duplicate gaps) — don't stop at a modest first batch.** "Quality over volume" (point 6 below) means don't pad with weak/duplicate/vague issues, it does not mean stopping early once *a* well-scoped batch is filed. When under floor: extend an already-proven, well-precedented vein first if one exists (e.g. a REST/GraphQL/MCP parity sweep with many remaining candidates — the fastest path to more verified, non-padded issues), then dispatch parallel subsystem-audit agents across distinct areas of the codebase once that's exhausted.
+**If the count is meaningfully under floor, keep sourcing issues until it clears (or a pass genuinely turns up no more real, non-duplicate gaps) — don't stop at a modest first batch.** "Quality over volume" (point 6 below) means don't pad with weak/duplicate/vague issues, it does not mean stopping early once _a_ well-scoped batch is filed. When under floor: extend an already-proven, well-precedented vein first if one exists (e.g. a REST/GraphQL/MCP parity sweep with many remaining candidates — the fastest path to more verified, non-padded issues), then dispatch parallel subsystem-audit agents across distinct areas of the codebase once that's exhausted.
 
 1. **Read `reference.md`'s "what's safe to unleash" framework first.** The single most common mistake is generating architecture/business-decision issues (hosted multi-tenant SaaS design, billing, SLAs, pricing) that must stay `maintainer-only` — this repo has ~90 such issues already correctly gated and the automation must not erode that boundary. Concrete engineering work with a clear existing precedent to follow is the target; open-ended product/business decisions are not.
 2. Pick real gaps to scope from, in priority order:
@@ -62,9 +62,50 @@ assume it keeps happening, don't assume today's backlog is clean.
 5. **Check every new batch for real relationships, then link them with GitHub's native features, not prose or a checklist:** `addSubIssue` to attach a new issue under its parent epic, `addBlockedBy` when an issue genuinely cannot start before another lands. The check itself is the discipline — most independent bug-fix/feature-parity issues (e.g. a batch of REST/GraphQL-mirror additions) genuinely have no dependency on each other, and forcing a link where none exists is worse than no link. Only connect issues where a contributor would actually be blocked or misled by working them out of order.
 6. Quality over the number in what gets filed — don't pad with weak, duplicate, or vaguely-scoped issues just to hit a count. This is NOT license to stop early: if the repo is meaningfully under the 50-100 floor, keep sourcing real, well-scoped issues (see the "if under floor" note above) until it clears or a pass genuinely turns up nothing left to scope — only then note a shortfall in the digest.
 
+## Pass 3 — Strategic epic/milestone health (once-per-day cadence)
+
+Pass 1/2 above are the issue-level hygiene loop; Pass 3 is a once-per-day layer on top of it that
+looks at whether the _epics and milestones themselves_ still make sense, and actively sources new
+feature/milestone-level work from the product's own direction rather than only reacting to what's
+already shipped. The scheduling automation gates it to at most once per day independent of the outer
+job's own firing cadence (currently 8h) — an external cadence tracker in the scheduling layer handles
+the actual gate, not this file.
+
+**When it runs:**
+
+1. Enumerate active epics/roadmap issues (the `roadmap` label, "Epic:" in the title, checklist-shaped
+   issues, native sub-issue parents — e.g. `ORB - Long Term Features & Improvements`, the AMS+ORB
+   self-host harness epic #6012). Verify every claimed child is actually filed and in the right state
+   (GraphQL cross-reference, mirror Pass 1's method, not text search). Surface now-unblocked follow-on
+   work when a previously-blocking issue closes.
+2. **Source real forward-looking work, not just verify.** Read each active epic/milestone's own
+   stated scope, the current codebase (`packages/loopover-miner`, `packages/loopover-engine`,
+   `src/**`), and repo docs to find concrete, buildable feature or milestone-scoped work that hasn't
+   been filed yet — grounded in the product as it exists and the milestone's documented direction, not
+   speculative ideas untethered from evidence (the same gap-audit technique Pass 2 already uses, in
+   reverse).
+3. **Pass 3 shares Pass 2's own 50-100+ (push toward 100+) contributor-available target — one
+   combined per-run volume goal, not a separate small quota** (revised 2026-07-17; an earlier version
+   of this pass capped itself at "0-2 issues/day, zero is fine," which under-delivered). If Pass 2
+   already reached the target, Pass 3 doesn't need to force more; if the count is still under-target
+   after Pass 2, Pass 3 should actively help close the gap with real feature/milestone issues rather
+   than sitting in verify-only mode. Quality still matters (don't pad with weak/duplicate/vague
+   issues, and every new issue must still meet this repo's Codecov/test-coverage bar in its own
+   Requirements) — but that's not license to under-deliver: a pass that can't find enough real work
+   should say so explicitly in the digest (what was tried, why nothing else was fileable), not quietly
+   file 1-2 and call it done.
+4. Respect the same "what's safe to unleash" test as Pass 2 — pure business/product decisions
+   (pricing, ToS, hosted multi-tenant architecture calls) stay `maintainer-only` regardless of how
+   mechanical the underlying code would be. Anything that's genuinely competitive-strategy/
+   monetization thinking rather than buildable product work stays out of public issues entirely — flag
+   it in the digest for the maintainer's private roadmap instead of filing it.
+5. Link every new issue as a native sub-issue of its parent epic via `addSubIssue` where a real parent
+   exists; give it a real milestone (same milestone-discipline bar as Pass 2 — a new milestone needs a
+   genuinely major initiative or recurring category, not a one-off).
+
 ## Daily digest
 
 End every run with a short summary (issues closed with why, checklists fixed, new issues filed with
-milestone/label, current contributor-available count before/after, anything ambiguous that was left
-alone on purpose). This is the user's only visibility into a fully-autonomous run — make it
-readable in under a minute.
+milestone/label — Pass 2 and Pass 3 combined, whether Pass 3 ran this cycle, current
+contributor-available count before/after, anything ambiguous that was left alone on purpose). This is
+the user's only visibility into a fully-autonomous run — make it readable in under a minute.
