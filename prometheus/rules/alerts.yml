@@ -427,12 +427,25 @@ groups:
         # Share of responses that are 5xx. status="5xx" selects only server errors;
         # the denominator sums all statuses. If the status label is missing entirely
         # (old build), the numerator selector matches nothing → no firing. 0.05 = 5%.
+        #
+        # Real-incident finding (2026-07-18): a quiet self-host install can see well
+        # under 1 req/5m. At that volume a single stray 5xx alone swings the ratio to
+        # 100% and pages on noise, not a real incident -- confirmed live (loopover
+        # logs showed no errors at all while this fired repeatedly). The `and` clause
+        # below requires at least 20 total requests in the same 5m window before the
+        # ratio is trusted -- derived directly from the 5% threshold itself: with
+        # fewer than 20 requests, one single 5xx response ALREADY exceeds 5% on
+        # sample-size noise alone, before the failure rate means anything.
         expr: |
           (
-            sum(rate(loopover_http_requests_total{status="5xx"}[5m]))
-            /
-            sum(rate(loopover_http_requests_total[5m])) > 0
-          ) > 0.05
+            (
+              sum(rate(loopover_http_requests_total{status="5xx"}[5m]))
+              /
+              sum(rate(loopover_http_requests_total[5m])) > 0
+            ) > 0.05
+          )
+          and
+          sum(increase(loopover_http_requests_total[5m])) >= 20
         for: 10m
         labels:
           severity: critical
