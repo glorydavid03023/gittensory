@@ -208,6 +208,23 @@ export function openGovernorState(dbPath = resolveGovernorStateDbPath()) {
     };
   }
 
+  // BEGIN IMMEDIATE takes the write lock BEFORE `fn`'s read, so two processes on the same file (the loop daemon
+  // saving rate-limit/cap-usage state on every gated write, and an operator's `governor pause`/`resume` CLI
+  // invocation racing it) cannot interleave a stale read with each other's write and silently clobber the
+  // scalar-state column-group they don't own -- same fix shape as event-ledger.js's appendEvent (#7221). Shared
+  // by all three governor_scalar_state save methods below, since they all read-then-write across the same row.
+  function withTransaction(fn) {
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const result = fn();
+      db.exec("COMMIT");
+      return result;
+    } catch (error) {
+      db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+
   const state = {
     dbPath: resolvedPath,
     loadRateLimitState() {
@@ -218,32 +235,36 @@ export function openGovernorState(dbPath = resolveGovernorStateDbPath()) {
       };
     },
     saveRateLimitState(rateLimitState) {
-      const row = getScalarStatement.get();
-      upsertScalarStatement.run(
-        JSON.stringify(rateLimitState?.buckets ?? DEFAULT_RATE_LIMIT_BUCKETS),
-        JSON.stringify(rateLimitState?.backoffAttempts ?? DEFAULT_RATE_LIMIT_BACKOFF),
-        row ? row.cap_usage_json : JSON.stringify(DEFAULT_CAP_USAGE),
-        row ? row.paused : 0,
-        row ? row.pause_reason : null,
-        row ? row.paused_at : null,
-        new Date().toISOString(),
-      );
+      withTransaction(() => {
+        const row = getScalarStatement.get();
+        upsertScalarStatement.run(
+          JSON.stringify(rateLimitState?.buckets ?? DEFAULT_RATE_LIMIT_BUCKETS),
+          JSON.stringify(rateLimitState?.backoffAttempts ?? DEFAULT_RATE_LIMIT_BACKOFF),
+          row ? row.cap_usage_json : JSON.stringify(DEFAULT_CAP_USAGE),
+          row ? row.paused : 0,
+          row ? row.pause_reason : null,
+          row ? row.paused_at : null,
+          new Date().toISOString(),
+        );
+      });
     },
     loadCapUsage() {
       const row = getScalarStatement.get();
       return parseJsonColumn(row?.cap_usage_json, DEFAULT_CAP_USAGE);
     },
     saveCapUsage(capUsage) {
-      const row = getScalarStatement.get();
-      upsertScalarStatement.run(
-        row ? row.rate_limit_buckets_json : JSON.stringify(DEFAULT_RATE_LIMIT_BUCKETS),
-        row ? row.rate_limit_backoff_json : JSON.stringify(DEFAULT_RATE_LIMIT_BACKOFF),
-        JSON.stringify(capUsage ?? DEFAULT_CAP_USAGE),
-        row ? row.paused : 0,
-        row ? row.pause_reason : null,
-        row ? row.paused_at : null,
-        new Date().toISOString(),
-      );
+      withTransaction(() => {
+        const row = getScalarStatement.get();
+        upsertScalarStatement.run(
+          row ? row.rate_limit_buckets_json : JSON.stringify(DEFAULT_RATE_LIMIT_BUCKETS),
+          row ? row.rate_limit_backoff_json : JSON.stringify(DEFAULT_RATE_LIMIT_BACKOFF),
+          JSON.stringify(capUsage ?? DEFAULT_CAP_USAGE),
+          row ? row.paused : 0,
+          row ? row.pause_reason : null,
+          row ? row.paused_at : null,
+          new Date().toISOString(),
+        );
+      });
     },
     // The governor pause/resume control surface (#4851): a real, persisted, operator/governor-writable flag the
     // loop checks before each cycle -- distinct from governor-kill-switch.js (a read-only resolver over env/YAML
@@ -259,20 +280,22 @@ export function openGovernorState(dbPath = resolveGovernorStateDbPath()) {
       };
     },
     savePauseState(pauseState) {
-      const row = getScalarStatement.get();
       const paused = Boolean(pauseState?.paused);
       const reason =
         typeof pauseState?.reason === "string" && pauseState.reason.trim() ? pauseState.reason.trim() : null;
       const pausedAt = paused ? new Date().toISOString() : null;
-      upsertScalarStatement.run(
-        row ? row.rate_limit_buckets_json : JSON.stringify(DEFAULT_RATE_LIMIT_BUCKETS),
-        row ? row.rate_limit_backoff_json : JSON.stringify(DEFAULT_RATE_LIMIT_BACKOFF),
-        row ? row.cap_usage_json : JSON.stringify(DEFAULT_CAP_USAGE),
-        paused ? 1 : 0,
-        reason,
-        pausedAt,
-        new Date().toISOString(),
-      );
+      withTransaction(() => {
+        const row = getScalarStatement.get();
+        upsertScalarStatement.run(
+          row ? row.rate_limit_buckets_json : JSON.stringify(DEFAULT_RATE_LIMIT_BUCKETS),
+          row ? row.rate_limit_backoff_json : JSON.stringify(DEFAULT_RATE_LIMIT_BACKOFF),
+          row ? row.cap_usage_json : JSON.stringify(DEFAULT_CAP_USAGE),
+          paused ? 1 : 0,
+          reason,
+          pausedAt,
+          new Date().toISOString(),
+        );
+      });
       return { paused, reason, pausedAt };
     },
     loadReputationHistory(repoFullName, apiBaseUrl) {

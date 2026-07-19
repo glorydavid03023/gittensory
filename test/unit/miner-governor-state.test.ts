@@ -61,6 +61,12 @@ describe("governor-state rate-limit state (#5134)", () => {
     state.saveRateLimitState({ buckets: { global: {}, perRepo: {} }, backoffAttempts: {} });
     expect(state.loadCapUsage()).toEqual({ budgetSpent: 42, turnsTaken: 3, elapsedMs: 5000 });
   });
+
+  it("defaults omitted buckets/backoffAttempts to empty, rather than throwing", () => {
+    const state = tempState();
+    state.saveRateLimitState({} as never);
+    expect(state.loadRateLimitState()).toEqual({ buckets: { global: {}, perRepo: {} }, backoffAttempts: {} });
+  });
 });
 
 describe("governor-state cap usage (#5134)", () => {
@@ -75,6 +81,12 @@ describe("governor-state cap usage (#5134)", () => {
     state.saveCapUsage({ budgetSpent: 10, turnsTaken: 1, elapsedMs: 100 });
     expect(state.loadCapUsage()).toEqual({ budgetSpent: 10, turnsTaken: 1, elapsedMs: 100 });
     expect(state.loadRateLimitState().buckets.global.open_pr?.count).toBe(1);
+  });
+
+  it("defaults an omitted cap usage to zeroed, rather than throwing", () => {
+    const state = tempState();
+    state.saveCapUsage(undefined as never);
+    expect(state.loadCapUsage()).toEqual({ budgetSpent: 0, turnsTaken: 0, elapsedMs: 0 });
   });
 });
 
@@ -433,5 +445,48 @@ describe("governor-state module-level default singleton (#5134)", () => {
     expect(loadReputationHistory("acme/widgets", "https://ghe.example.com/api/v3")).toEqual(written);
     // The github.com default host is untouched.
     expect(loadReputationHistory("acme/widgets")).toEqual({ decided: 0, unfavorable: 0 });
+  });
+});
+
+describe("governor-state scalar-state save atomicity (#7221)", () => {
+  it("REGRESSION: two sibling connections to the same file preserve each other's already-committed column-group across saves", () => {
+    // Two DatabaseSync-backed handles on ONE file are exactly the two sibling miner PROCESSES the issue
+    // describes (the loop daemon vs. an operator's `governor pause` CLI invocation) -- SQLite's file locking
+    // treats them identically, same technique as claim-ledger.test.ts's own #6758 regression test.
+    const root = mkdtempSync(join(tmpdir(), "loopover-miner-governor-state-shared-"));
+    roots.push(root);
+    const dbPath = join(root, "shared-governor-state.sqlite3");
+    const processA = openGovernorState(dbPath);
+    const processB = openGovernorState(dbPath);
+    states.push(processA, processB);
+
+    processA.saveRateLimitState({ buckets: { global: { open_pr: { count: 5, windowStartMs: 0 } }, perRepo: {} }, backoffAttempts: {} });
+    const written = processB.savePauseState({ paused: true, reason: "operator pause" });
+    expect(written).toMatchObject({ paused: true, reason: "operator pause" });
+
+    // B's pause save must not have clobbered A's already-committed rate-limit state back to defaults.
+    expect(processA.loadRateLimitState().buckets.global.open_pr?.count).toBe(5);
+    expect(processB.loadRateLimitState().buckets.global.open_pr?.count).toBe(5);
+
+    processA.saveCapUsage({ budgetSpent: 99, turnsTaken: 4, elapsedMs: 2000 });
+
+    // A's cap-usage save must not have clobbered B's already-committed pause state back to unpaused.
+    expect(processB.loadPauseState()).toMatchObject({ paused: true, reason: "operator pause" });
+    expect(processA.loadCapUsage()).toEqual({ budgetSpent: 99, turnsTaken: 4, elapsedMs: 2000 });
+  });
+
+  it("REGRESSION: rolls the transaction back if the upsert throws, leaving state unchanged and the handle usable", () => {
+    const state = tempState();
+    state.saveCapUsage({ budgetSpent: 10, turnsTaken: 1, elapsedMs: 100 });
+
+    // A function value JSON.stringifies to `undefined`, which node:sqlite refuses to bind -- this throws INSIDE
+    // withTransaction's try block (after BEGIN IMMEDIATE), exercising the ROLLBACK path.
+    expect(() => state.saveRateLimitState({ buckets: (() => {}) as never, backoffAttempts: {} })).toThrow();
+
+    // Rolled back: cap usage from before the throwing call is untouched, not partially overwritten.
+    expect(state.loadCapUsage()).toEqual({ budgetSpent: 10, turnsTaken: 1, elapsedMs: 100 });
+    // No stranded open transaction: a subsequent valid save on the SAME handle still succeeds.
+    state.saveRateLimitState({ buckets: { global: {}, perRepo: {} }, backoffAttempts: {} });
+    expect(state.loadRateLimitState()).toEqual({ buckets: { global: {}, perRepo: {} }, backoffAttempts: {} });
   });
 });
