@@ -78,6 +78,30 @@ describe("demo portfolio-queue items (#5963)", () => {
     expect(getDemoPortfolioQueueItems().length).toBeGreaterThan(0);
   });
 
+  it("its in_progress/done counts match DEMO_PORTFOLIO_QUEUE_SUMMARY both fleet-wide AND per repo (#7227)", () => {
+    const items = getDemoPortfolioQueueItems();
+    const count = (rows: typeof items, status: string) => rows.filter((i) => i.status === status).length;
+
+    // Fleet-wide: the table can't disagree with the status cards above it.
+    expect(count(items, "in_progress")).toBe(DEMO_PORTFOLIO_QUEUE_SUMMARY.byStatus.in_progress);
+    expect(count(items, "done")).toBe(DEMO_PORTFOLIO_QUEUE_SUMMARY.byStatus.done);
+
+    // Per repo: each repo's actionable split matches its summary byStatus (only `queued`, which an actionable
+    // item can't represent, is absent) -- so the fixture is internally consistent at every level.
+    for (const repo of DEMO_PORTFOLIO_QUEUE_SUMMARY.repos) {
+      const rows = items.filter((i) => i.repoFullName === repo.repoFullName);
+      expect(count(rows, "in_progress")).toBe(repo.byStatus.in_progress);
+      expect(count(rows, "done")).toBe(repo.byStatus.done);
+    }
+  });
+
+  it("references only the four synthetic demo repos, never a real repo name (#7227)", () => {
+    const allowed = new Set(DEMO_PORTFOLIO_QUEUE_SUMMARY.repos.map((r) => r.repoFullName));
+    for (const item of getDemoPortfolioQueueItems()) {
+      expect(allowed.has(item.repoFullName)).toBe(true);
+    }
+  });
+
   it("removeDemoPortfolioQueueItem removes and returns the matching item", () => {
     const beforeCount = getDemoPortfolioQueueItems().length;
     const target = { ...getDemoPortfolioQueueItems()[0]! };

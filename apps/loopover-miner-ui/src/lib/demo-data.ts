@@ -97,26 +97,35 @@ export const DEMO_PORTFOLIO_QUEUE_SUMMARY: PortfolioQueueSummary = {
   oldestQueuedAgeMs: 6 * 60 * 60 * 1000, // 6h
 };
 
+// Every actionable (in_progress/done) row the fleet's DEMO_PORTFOLIO_QUEUE_SUMMARY reports (#7227): 3
+// in_progress + 15 done = 18, so the demo "Queue actions" table can't visibly disagree with the status cards.
+// The per-repo in_progress/done split also matches each repo's summary byStatus (widgets 1/6, api-gateway 1/4,
+// docs-site 0/3, inventory 1/2) -- only the summary's `queued` rows, which PortfolioQueueActionItem can't
+// represent, are absent. Entirely synthetic: only the four demo repos and the existing wgt-/gw-/docs-/inv- ids.
+const FORGE = "https://forge.example.com";
 const DEFAULT_DEMO_PORTFOLIO_QUEUE_ITEMS: PortfolioQueueActionItem[] = [
-  {
-    apiBaseUrl: "https://forge.example.com",
-    repoFullName: "acme/widgets",
-    identifier: "wgt-2451",
-    status: "in_progress",
-  },
-  {
-    apiBaseUrl: "https://forge.example.com",
-    repoFullName: "acme/api-gateway",
-    identifier: "gw-118",
-    status: "in_progress",
-  },
-  { apiBaseUrl: "https://forge.example.com", repoFullName: "acme/widgets", identifier: "wgt-2438", status: "done" },
-  {
-    apiBaseUrl: "https://forge.example.com",
-    repoFullName: "northwind/inventory",
-    identifier: "inv-77",
-    status: "done",
-  },
+  // acme/widgets — 1 in_progress, 6 done
+  { apiBaseUrl: FORGE, repoFullName: "acme/widgets", identifier: "wgt-2451", status: "in_progress" },
+  { apiBaseUrl: FORGE, repoFullName: "acme/widgets", identifier: "wgt-2438", status: "done" },
+  { apiBaseUrl: FORGE, repoFullName: "acme/widgets", identifier: "wgt-2402", status: "done" },
+  { apiBaseUrl: FORGE, repoFullName: "acme/widgets", identifier: "wgt-2377", status: "done" },
+  { apiBaseUrl: FORGE, repoFullName: "acme/widgets", identifier: "wgt-2340", status: "done" },
+  { apiBaseUrl: FORGE, repoFullName: "acme/widgets", identifier: "wgt-2311", status: "done" },
+  { apiBaseUrl: FORGE, repoFullName: "acme/widgets", identifier: "wgt-2288", status: "done" },
+  // acme/api-gateway — 1 in_progress, 4 done
+  { apiBaseUrl: FORGE, repoFullName: "acme/api-gateway", identifier: "gw-118", status: "in_progress" },
+  { apiBaseUrl: FORGE, repoFullName: "acme/api-gateway", identifier: "gw-104", status: "done" },
+  { apiBaseUrl: FORGE, repoFullName: "acme/api-gateway", identifier: "gw-97", status: "done" },
+  { apiBaseUrl: FORGE, repoFullName: "acme/api-gateway", identifier: "gw-83", status: "done" },
+  { apiBaseUrl: FORGE, repoFullName: "acme/api-gateway", identifier: "gw-76", status: "done" },
+  // acme/docs-site — 0 in_progress, 3 done
+  { apiBaseUrl: FORGE, repoFullName: "acme/docs-site", identifier: "docs-58", status: "done" },
+  { apiBaseUrl: FORGE, repoFullName: "acme/docs-site", identifier: "docs-51", status: "done" },
+  { apiBaseUrl: FORGE, repoFullName: "acme/docs-site", identifier: "docs-49", status: "done" },
+  // northwind/inventory — 1 in_progress, 2 done
+  { apiBaseUrl: FORGE, repoFullName: "northwind/inventory", identifier: "inv-77", status: "in_progress" },
+  { apiBaseUrl: FORGE, repoFullName: "northwind/inventory", identifier: "inv-71", status: "done" },
+  { apiBaseUrl: FORGE, repoFullName: "northwind/inventory", identifier: "inv-64", status: "done" },
 ];
 
 // Mutable, in-memory, browser-session-only copy -- release/requeue removes the item from this actionable list
