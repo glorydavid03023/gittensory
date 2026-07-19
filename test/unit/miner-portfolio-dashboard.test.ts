@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   collectPortfolioDashboard,
@@ -8,8 +11,18 @@ import {
 
 const mockQueue = (entries: unknown[]): { listQueue: () => unknown[]; close: () => void } => ({ listQueue: () => entries, close: () => {} });
 const NOW = Date.parse("2026-07-10T00:00:00.000Z");
+const roots: string[] = [];
+const previousConfigDirs: Array<string | undefined> = [];
 
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+  vi.restoreAllMocks();
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+  if (previousConfigDirs.length > 0) {
+    const previousConfigDir = previousConfigDirs.pop();
+    if (previousConfigDir === undefined) delete process.env.LOOPOVER_MINER_CONFIG_DIR;
+    else process.env.LOOPOVER_MINER_CONFIG_DIR = previousConfigDir;
+  }
+});
 
 describe("collectPortfolioDashboard (#4287)", () => {
   it("throws when the injected portfolio queue is unusable", () => {
@@ -66,6 +79,32 @@ describe("collectPortfolioDashboard (#4287)", () => {
     expect(
       collectPortfolioDashboard({ portfolioQueue: mockQueue([{ repoFullName: "a/b", status: "done", enqueuedAt: "x" }]) }, { nowMs: NOW }).oldestQueuedAgeMs,
     ).toBeNull(); // nothing queued
+    expect(
+      collectPortfolioDashboard({ portfolioQueue: mockQueue(entries) }, { nowMs: Number.NaN }).oldestQueuedAgeMs,
+    ).toBeNull(); // non-finite clock
+  });
+
+  it("floors a negative oldest-queued age to zero when the clock is before the enqueue time", () => {
+    const summary = collectPortfolioDashboard(
+      {
+        portfolioQueue: mockQueue([
+          { repoFullName: "a/b", status: "queued", enqueuedAt: "2026-07-01T00:00:00.000Z" },
+        ]),
+      },
+      { nowMs: Date.parse("2026-06-01T00:00:00.000Z") },
+    );
+    expect(summary.oldestQueuedAgeMs).toBe(0);
+  });
+
+  it("coerces a non-string apiBaseUrl the same way as a missing host", () => {
+    const summary = collectPortfolioDashboard({
+      portfolioQueue: mockQueue([
+        { apiBaseUrl: 42, repoFullName: "acme/a", status: "done", enqueuedAt: "2026-07-01T00:00:00.000Z" },
+      ]),
+    });
+    expect(summary.repos).toEqual([
+      { apiBaseUrl: "", repoFullName: "acme/a", byStatus: { queued: 0, in_progress: 0, done: 1 }, total: 1 },
+    ]);
   });
 });
 
@@ -129,5 +168,19 @@ describe("runPortfolioDashboard (#4287)", () => {
       error: expect.stringContaining("Unknown option"),
     });
     expect(err).not.toHaveBeenCalled();
+  });
+
+  it("opens and closes the default portfolio queue, falling back to Date.now when nowMs is omitted", () => {
+    const root = mkdtempSync(join(tmpdir(), "loopover-miner-portfolio-dashboard-default-"));
+    roots.push(root);
+    previousConfigDirs.push(process.env.LOOPOVER_MINER_CONFIG_DIR);
+    process.env.LOOPOVER_MINER_CONFIG_DIR = root;
+    const log = vi.spyOn(console, "log").mockImplementation(() => {});
+    expect(runPortfolioDashboard([])).toBe(0);
+    expect(String(log.mock.calls[0]?.[0])).toContain("portfolio queue is empty");
+    log.mockClear();
+    // Non-finite nowMs also falls through to Date.now() on the CLI path.
+    expect(runPortfolioDashboard([], { initPortfolioQueue: () => mockQueue([]), nowMs: Number.NaN })).toBe(0);
+    expect(String(log.mock.calls[0]?.[0])).toContain("portfolio queue is empty");
   });
 });

@@ -8,18 +8,28 @@ vi.mock("@loopover/engine", async () => {
 });
 
 import { evaluateRunLoopBoundaryGate } from "../../packages/loopover-miner/lib/governor-run-halt.js";
-import { initGovernorLedger } from "../../packages/loopover-miner/lib/governor-ledger.js";
+import {
+  closeDefaultGovernorLedger,
+  initGovernorLedger,
+} from "../../packages/loopover-miner/lib/governor-ledger.js";
 import { initPortfolioQueueManager } from "../../packages/loopover-miner/lib/portfolio-queue-manager.js";
 import { initPortfolioQueueStore } from "../../packages/loopover-miner/lib/portfolio-queue.js";
 
 const roots: string[] = [];
 const ledgers: Array<{ close(): void }> = [];
 const stores: Array<{ close(): void }> = [];
+const previousConfigDirs: Array<string | undefined> = [];
 
 afterEach(() => {
   for (const ledger of ledgers.splice(0)) ledger.close();
   for (const store of stores.splice(0)) store.close();
+  closeDefaultGovernorLedger();
   for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+  if (previousConfigDirs.length > 0) {
+    const previousConfigDir = previousConfigDirs.pop();
+    if (previousConfigDir === undefined) delete process.env.LOOPOVER_MINER_CONFIG_DIR;
+    else process.env.LOOPOVER_MINER_CONFIG_DIR = previousConfigDir;
+  }
 });
 
 const LIMITS = { budget: 100, turns: 5, elapsedMs: 60_000 };
@@ -144,5 +154,46 @@ describe("evaluateRunLoopBoundaryGate (#2347)", () => {
     expect(second.recorded).toBeNull();
     expect(second.canClaimNext).toBe(false);
     expect(append).toHaveBeenCalledTimes(1);
+  });
+
+  it("forwards custom convergenceThresholds and records via the default ledger append", () => {
+    const root = mkdtempSync(join(tmpdir(), "loopover-miner-governor-run-halt-thresholds-"));
+    roots.push(root);
+    previousConfigDirs.push(process.env.LOOPOVER_MINER_CONFIG_DIR);
+    process.env.LOOPOVER_MINER_CONFIG_DIR = root;
+
+    // Defaults would halt on consecutiveFailures: 3; raised thresholds keep the run healthy.
+    const healthy = evaluateRunLoopBoundaryGate({
+      runHalted: false,
+      usage: HEALTHY_USAGE,
+      limits: LIMITS,
+      convergence: { attempts: 4, consecutiveFailures: 3, reenqueues: 0, reachedDone: false },
+      convergenceThresholds: { maxConsecutiveFailures: 10, maxReenqueues: 10 },
+    });
+    expect(healthy.runHalted).toBe(false);
+    expect(healthy.canClaimNext).toBe(true);
+    expect(healthy.recorded?.eventType).toBe("allowed");
+    expect(healthy.releasedItem).toBeNull();
+  });
+
+  it("halts on a fresh boundary without releasing when markFailed is omitted", () => {
+    const root = mkdtempSync(join(tmpdir(), "loopover-miner-governor-run-halt-no-mark-"));
+    roots.push(root);
+    const ledger = initGovernorLedger(join(root, "governor-ledger.sqlite3"));
+    ledgers.push(ledger);
+
+    const halted = evaluateRunLoopBoundaryGate(
+      {
+        runHalted: false,
+        usage: { budgetSpent: 100, turnsTaken: 1, elapsedMs: 1_000 },
+        limits: LIMITS,
+        convergence: HEALTHY_CONVERGENCE,
+        inFlightItem: { repoFullName: "acme/repo-a", identifier: "issue:7" },
+      },
+      { append: (event) => ledger.appendGovernorEvent(event) },
+    );
+    expect(halted.runHalted).toBe(true);
+    expect(halted.releasedItem).toBeNull();
+    expect(halted.recorded?.eventType).toBe("denied");
   });
 });
