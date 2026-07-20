@@ -3,5 +3,11 @@
 // deny-hooks.ts) by #5667 so the review stack and the miner share one copy. No behavior change — the evaluator is
 // pure (no IO, no globals, no Date/random). Types (DenyRule/DenyVerdict/ProposedToolCall) come from the same
 // engine module so the miner package's public contract stays identical after the TypeScript migration.
-export { DEFAULT_DENY_RULES, evaluateDenyHooks, } from "@loopover/engine";
-//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZGVueS1ob29rcy5qcyIsInNvdXJjZVJvb3QiOiIiLCJzb3VyY2VzIjpbImRlbnktaG9va3MudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBQUEsK0dBQStHO0FBQy9HLHlHQUF5RztBQUN6RyxrSEFBa0g7QUFDbEgsNkdBQTZHO0FBQzdHLHVHQUF1RztBQUV2RyxPQUFPLEVBQ0wsa0JBQWtCLEVBQ2xCLGlCQUFpQixHQUlsQixNQUFNLGtCQUFrQixDQUFDIn0=
+
+export {
+  DEFAULT_DENY_RULES,
+  evaluateDenyHooks,
+  type DenyRule,
+  type DenyVerdict,
+  type ProposedToolCall,
+} from "@loopover/engine";

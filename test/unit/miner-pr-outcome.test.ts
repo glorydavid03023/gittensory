@@ -105,4 +105,15 @@ describe("readPrOutcomes (#4274)", () => {
     expect(readPrOutcomes({} as never).size).toBe(0);
     expect(readPrOutcomes({ readEvents: () => null } as never).size).toBe(0);
   });
+
+  it("skips non-object events in the stream without throwing (#7313 TypeScript conversion)", () => {
+    const ledger = mockLedger();
+    ledger._events.push(
+      null as never,
+      "noise" as never,
+      42 as never,
+      { type: MINER_PR_OUTCOME_EVENT, repoFullName: "acme/widgets", payload: { prNumber: 8, decision: "merged" } },
+    );
+    expect([...readPrOutcomes(ledger).keys()]).toEqual(["acme/widgets:8"]);
+  });
 });

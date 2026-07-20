@@ -110,3 +110,11 @@ describe("evaluateDenyHooks — rule composition and allow paths", () => {
     expect(evaluateDenyHooks({ name: "Read", input: { count: 3, nested: { file: "src/x.ts" } } }).allowed).toBe(true);
   });
 });
+
+describe("deny-hooks TypeScript re-export surface (#7313 batch 4.5)", () => {
+  it("keeps the miner package entry as a thin engine re-export after .ts conversion", () => {
+    expect(typeof evaluateDenyHooks).toBe("function");
+    expect(Array.isArray(DEFAULT_DENY_RULES)).toBe(true);
+    expect(DEFAULT_DENY_RULES.length).toBeGreaterThan(0);
+  });
+});
