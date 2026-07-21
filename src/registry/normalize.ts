@@ -1,5 +1,5 @@
 import { DEFAULT_ISSUE_DISCOVERY_SHARE } from "../scoring/model";
-import type { JsonValue, RegistryRepoConfig, RegistrySnapshot, RepoPoolAssociation, RepoTimeDecayOverrides } from "../types";
+import type { JsonValue, RegistryRepoConfig, RegistrySnapshot, RepoOrigin, RepoPoolAssociation, RepoTimeDecayOverrides } from "../types";
 
 type RawRepoConfig = Record<string, JsonValue>;
 
@@ -77,6 +77,7 @@ function normalizeRepo(repo: string, config: RawRepoConfig): RegistryRepoConfig 
     eligibilityMode: stringValue(config.eligibility_mode),
     timeDecay: parseTimeDecayOverrides(config.scoring),
     poolAssociation: parsePoolAssociation(config),
+    repoOrigin: parseRepoOrigin(config),
     raw: config,
   };
 }
@@ -96,6 +97,29 @@ function parsePoolAssociation(config: RawRepoConfig): RepoPoolAssociation | null
 // #6099's pool-state reporting UI consume — the single place downstream code asks "is this repo pool-funded?".
 export function getRepoPoolAssociation(config: RegistryRepoConfig | null | undefined): RepoPoolAssociation | null {
   return config?.poolAssociation ?? null;
+}
+
+// Repo provisioning origin (#7589), from the registry's flat `repo_origin` (+ `hosting_org` for APR) fields.
+// Only an explicit marker yields an origin: an absent field parses to null (mirroring parsePoolAssociation),
+// because absent means "pre-dates this field / not yet known", NOT a confirmed BYOR. An `apr` marker missing
+// its hosting org is malformed and likewise treated as no origin, the same way a half-specified pool
+// association above collapses to null rather than a partial object. This is type-and-plumbing only — no
+// repo-creation or GitHub API logic lives here (#7590 covers that separately).
+function parseRepoOrigin(config: RawRepoConfig): RepoOrigin | null {
+  const kind = stringValue(config.repo_origin);
+  if (kind === "byor") return { kind: "byor" };
+  if (kind === "apr") {
+    const hostingOrg = stringValue(config.hosting_org);
+    return hostingOrg === null ? null : { kind: "apr", hostingOrg };
+  }
+  return null;
+}
+
+// Read accessor for a repo's provisioning origin (#7589), mirroring getRepoPoolAssociation: returns the origin
+// a repo was registered with, or null for a repo that pre-dates the field / has no config. The single place
+// downstream code asks "was this repo customer-provided (BYOR) or loopover-provisioned (APR)?".
+export function getRepoOrigin(config: RegistryRepoConfig | null | undefined): RepoOrigin | null {
+  return config?.repoOrigin ?? null;
 }
 
 // Per-repo time-decay overrides (#703), from the registry's nested `scoring.time_decay` (the same source

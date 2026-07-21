@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getRepository, upsertRepositoryFromGitHub } from "../../src/db/repositories";
-import { getRepoPoolAssociation, normalizeRegistryPayload } from "../../src/registry/normalize";
+import { getRepoOrigin, getRepoPoolAssociation, normalizeRegistryPayload } from "../../src/registry/normalize";
 import { DEFAULT_ISSUE_DISCOVERY_SHARE } from "../../src/scoring/model";
 import { getLatestRegistrySnapshot, persistRegistrySnapshot, refreshRegistry } from "../../src/registry/sync";
 import { createCloudTestEnv, createTestEnv } from "../helpers/d1";
@@ -116,6 +116,50 @@ describe("registry normalization", () => {
     expect(byName["JSONbored/organic"]!.poolAssociation ?? null).toBeNull();
     expect(byName["JSONbored/pool-only"]!.poolAssociation ?? null).toBeNull();
     expect(byName["JSONbored/subnet-only"]!.poolAssociation ?? null).toBeNull();
+  });
+
+  it("parses a repo provisioning origin (BYOR/APR) and leaves unmarked repos with none (#7589)", () => {
+    const snapshot = normalizeRegistryPayload(
+      {
+        // An explicit BYOR marker → the customer-provided origin reads back.
+        "JSONbored/byor": { emission_share: 0.02, repo_origin: "byor" },
+        // An APR marker carries the loopover org it was provisioned under → full APR origin.
+        "JSONbored/apr": { emission_share: 0.02, repo_origin: "apr", hosting_org: "loopover-repos" },
+        // An unmarked repo has no origin field → null, byte-identical to today (NOT assumed BYOR).
+        "JSONbored/legacy": { emission_share: 0.01 },
+        // An APR marker missing its hosting org is malformed → null, not a half-populated object.
+        "JSONbored/apr-no-org": { emission_share: 0.01, repo_origin: "apr" },
+        // An unrecognized origin string is ignored → null.
+        "JSONbored/bogus": { emission_share: 0.01, repo_origin: "mystery" },
+      },
+      { kind: "raw-github", url: "https://example.test/master_repositories.json" },
+      "2026-05-22T00:00:00.000Z",
+    );
+    const byName = Object.fromEntries(snapshot.repositories.map((r) => [r.repo, r]));
+    expect(byName["JSONbored/byor"]!.repoOrigin).toEqual({ kind: "byor" });
+    expect(byName["JSONbored/apr"]!.repoOrigin).toEqual({ kind: "apr", hostingOrg: "loopover-repos" });
+    expect(byName["JSONbored/legacy"]!.repoOrigin ?? null).toBeNull();
+    expect(byName["JSONbored/apr-no-org"]!.repoOrigin ?? null).toBeNull();
+    expect(byName["JSONbored/bogus"]!.repoOrigin ?? null).toBeNull();
+    // The unmarked repo carries NO origin key at all, so it round-trips byte-identical to before this field.
+    expect("repoOrigin" in byName["JSONbored/legacy"]!).toBe(true);
+    expect(byName["JSONbored/legacy"]!.repoOrigin).toBeNull();
+  });
+
+  it("reads a repo's origin via the getRepoOrigin accessor (#7589)", () => {
+    const snapshot = normalizeRegistryPayload(
+      { "JSONbored/apr": { emission_share: 0.02, repo_origin: "apr", hosting_org: "loopover-repos" } },
+      { kind: "raw-github", url: "https://example.test/master_repositories.json" },
+      "2026-05-22T00:00:00.000Z",
+    );
+    const config = snapshot.repositories.find((r) => r.repo === "JSONbored/apr")!;
+    expect(getRepoOrigin(config)).toEqual({ kind: "apr", hostingOrg: "loopover-repos" });
+    expect(getRepoOrigin(null)).toBeNull();
+    expect(getRepoOrigin(undefined)).toBeNull();
+    // A config object with no repoOrigin key at all resolves to null through the nullish accessor (the
+    // "pre-dates this field" case). Omit the key rather than set it to undefined, per exactOptionalPropertyTypes.
+    const { repoOrigin: _omitted, ...withoutOrigin } = config;
+    expect(getRepoOrigin(withoutOrigin)).toBeNull();
   });
 
   it("getRepoPoolAssociation reads a repo's pool association or null (#6320)", () => {

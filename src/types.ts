@@ -449,6 +449,16 @@ export type RepoPoolAssociation = {
   subnetId: number;
 };
 
+/**
+ * Repo provisioning origin (#7589's BYOR+APR epic; #7590's hosting decision). BYOR = a customer's own
+ * pre-existing repo; APR = a loopover-provisioned repo, carrying the GitHub org it was created under. Present
+ * only when the registry explicitly records it — absent means "not yet known / pre-dates this field", NOT a
+ * confirmed BYOR, so an unmarked repo round-trips byte-identical to today. Read it via `getRepoOrigin`.
+ */
+export type RepoOrigin =
+  | { kind: "byor" }
+  | { kind: "apr"; hostingOrg: string };
+
 export type RegistryRepoConfig = {
   repo: string;
   emissionShare: number;
@@ -463,6 +473,8 @@ export type RegistryRepoConfig = {
   timeDecay?: RepoTimeDecayOverrides | null;
   /** Subnet-funded pool association (#6099); null/absent = an organic repo with no funding pool (#6320). */
   poolAssociation?: RepoPoolAssociation | null;
+  /** Repo provisioning origin (#7589); null/absent = pre-dates this field, unchanged behavior (do NOT assume BYOR). */
+  repoOrigin?: RepoOrigin | null;
   raw: Record<string, JsonValue>;
 };
 
