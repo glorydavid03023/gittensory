@@ -1,5 +1,5 @@
 import { DEFAULT_ISSUE_DISCOVERY_SHARE } from "../scoring/model";
-import type { JsonValue, RegistryRepoConfig, RegistrySnapshot, RepoOrigin, RepoPoolAssociation, RepoTimeDecayOverrides } from "../types";
+import type { CustomerPoolAssociation, JsonValue, RegistryRepoConfig, RegistrySnapshot, RepoOrigin, RepoPoolAssociation, RepoTimeDecayOverrides } from "../types";
 
 type RawRepoConfig = Record<string, JsonValue>;
 
@@ -77,6 +77,7 @@ function normalizeRepo(repo: string, config: RawRepoConfig): RegistryRepoConfig 
     eligibilityMode: stringValue(config.eligibility_mode),
     timeDecay: parseTimeDecayOverrides(config.scoring),
     poolAssociation: parsePoolAssociation(config),
+    customerPoolAssociation: parseCustomerPoolAssociation(config),
     repoOrigin: parseRepoOrigin(config),
     raw: config,
   };
@@ -97,6 +98,25 @@ function parsePoolAssociation(config: RawRepoConfig): RepoPoolAssociation | null
 // #6099's pool-state reporting UI consume — the single place downstream code asks "is this repo pool-funded?".
 export function getRepoPoolAssociation(config: RegistryRepoConfig | null | undefined): RepoPoolAssociation | null {
   return config?.poolAssociation ?? null;
+}
+
+// Customer-funded pool association (#7679), from the registry's flat `pool_id`/`funder_account` fields —
+// parallel to parsePoolAssociation, but the funding source is a paying customer's account, not a subnet netuid.
+// Both must be present and non-empty for an association to exist; a repo missing either (i.e. every repo with
+// no customer-funded pool, including a subnet-funded one that carries `subnet_id` but no `funder_account`)
+// parses to null and stays byte-identical to today.
+function parseCustomerPoolAssociation(config: RawRepoConfig): CustomerPoolAssociation | null {
+  const poolId = stringValue(config.pool_id);
+  const funderAccount = stringValue(config.funder_account);
+  if (poolId === null || funderAccount === null) return null;
+  return { poolId, funderAccount };
+}
+
+// Read accessor for a repo's customer-funded pool association (#7679), mirroring getRepoPoolAssociation: the
+// single place downstream code asks "is this repo funded by a paying customer?", distinct from the subnet-funded
+// question getRepoPoolAssociation answers.
+export function getCustomerPoolAssociation(config: RegistryRepoConfig | null | undefined): CustomerPoolAssociation | null {
+  return config?.customerPoolAssociation ?? null;
 }
 
 // Repo provisioning origin (#7589), from the registry's flat `repo_origin` (+ `hosting_org` for APR) fields.

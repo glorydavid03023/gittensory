@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getRepository, upsertRepositoryFromGitHub } from "../../src/db/repositories";
-import { getRepoOrigin, getRepoPoolAssociation, normalizeRegistryPayload } from "../../src/registry/normalize";
+import { getCustomerPoolAssociation, getRepoOrigin, getRepoPoolAssociation, normalizeRegistryPayload } from "../../src/registry/normalize";
 import { DEFAULT_ISSUE_DISCOVERY_SHARE } from "../../src/scoring/model";
 import { getLatestRegistrySnapshot, persistRegistrySnapshot, refreshRegistry } from "../../src/registry/sync";
 import { createCloudTestEnv, createTestEnv } from "../helpers/d1";
@@ -116,6 +116,47 @@ describe("registry normalization", () => {
     expect(byName["JSONbored/organic"]!.poolAssociation ?? null).toBeNull();
     expect(byName["JSONbored/pool-only"]!.poolAssociation ?? null).toBeNull();
     expect(byName["JSONbored/subnet-only"]!.poolAssociation ?? null).toBeNull();
+  });
+
+  it("parses a customer-funded pool association, parallel to and distinct from the subnet-funded one (#7679)", () => {
+    const snapshot = normalizeRegistryPayload(
+      {
+        // A customer-funded repo carries a pool id and a funder account → a full customer association reads back.
+        "JSONbored/customer": { emission_share: 0.02, pool_id: "pool-cust", funder_account: "acme-corp" },
+        // A subnet-funded repo has pool_id + subnet_id but no funder_account → NO customer association (they stay distinct).
+        "JSONbored/subnet": { emission_share: 0.02, pool_id: "pool-74", subnet_id: 74 },
+        // An organic repo has neither → no customer association, byte-identical to today.
+        "JSONbored/organic": { emission_share: 0.01 },
+        // A partial customer association (pool id but no funder) is dropped, not a half-populated object.
+        "JSONbored/pool-only": { emission_share: 0.01, pool_id: "pool-x" },
+        // A partial customer association (funder but no pool id) is likewise dropped.
+        "JSONbored/funder-only": { emission_share: 0.01, funder_account: "acme-corp" },
+      },
+      { kind: "raw-github", url: "https://example.test/master_repositories.json" },
+      "2026-05-22T00:00:00.000Z",
+    );
+    const byName = Object.fromEntries(snapshot.repositories.map((r) => [r.repo, r]));
+    expect(byName["JSONbored/customer"]!.customerPoolAssociation).toEqual({ poolId: "pool-cust", funderAccount: "acme-corp" });
+    // The subnet-funded repo has its own poolAssociation but NO customer association — the two are independent.
+    expect(byName["JSONbored/subnet"]!.customerPoolAssociation ?? null).toBeNull();
+    expect(byName["JSONbored/subnet"]!.poolAssociation).toEqual({ poolId: "pool-74", subnetId: 74 });
+    expect(byName["JSONbored/organic"]!.customerPoolAssociation ?? null).toBeNull();
+    expect(byName["JSONbored/pool-only"]!.customerPoolAssociation ?? null).toBeNull();
+    expect(byName["JSONbored/funder-only"]!.customerPoolAssociation ?? null).toBeNull();
+  });
+
+  it("reads a repo's customer-funded pool via the getCustomerPoolAssociation accessor (#7679)", () => {
+    const snapshot = normalizeRegistryPayload(
+      { "JSONbored/customer": { emission_share: 0.02, pool_id: "pool-cust", funder_account: "acme-corp" } },
+      { kind: "raw-github", url: "https://example.test/master_repositories.json" },
+      "2026-05-22T00:00:00.000Z",
+    );
+    const config = snapshot.repositories.find((r) => r.repo === "JSONbored/customer")!;
+    expect(getCustomerPoolAssociation(config)).toEqual({ poolId: "pool-cust", funderAccount: "acme-corp" });
+    expect(getCustomerPoolAssociation(null)).toBeNull();
+    expect(getCustomerPoolAssociation(undefined)).toBeNull();
+    const { customerPoolAssociation: _omitted, ...withoutCustomerPool } = config;
+    expect(getCustomerPoolAssociation(withoutCustomerPool)).toBeNull();
   });
 
   it("parses a repo provisioning origin (BYOR/APR) and leaves unmarked repos with none (#7589)", () => {
